@@ -62,6 +62,11 @@ func ellipsePoints(left, top, width, height int) []point {
 	if width <= 0 || height <= 0 {
 		return nil
 	}
+
+	if height > width {
+		return flipPoints(ellipsePoints(top, left, height, width))
+	}
+
 	var points []point
 	a := float64(width) / 2.0
 	b := float64(height) / 2.0
@@ -98,6 +103,13 @@ func ellipsePoints(left, top, width, height int) []point {
 		all[i*4+3] = point{-p.x + left + width/2, -p.y + top + height/2}
 	}
 	return all
+}
+
+func flipPoints(points []point) []point {
+	for i, p := range points {
+		points[i].x, points[i].y = p.y, p.x
+	}
+	return points
 }
 
 type point struct{ x, y int }
