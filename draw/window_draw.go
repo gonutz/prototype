@@ -50,7 +50,7 @@ func (w *Window) DrawEllipse(x, y, width, height int, color Color) {
 }
 
 func ellipsePoints(left, top, width, height int) []point {
-	if width == 0 || height == 0 {
+	if width <= 0 || height <= 0 {
 		return nil
 	}
 	if width == 1 && height == 1 {
@@ -130,7 +130,7 @@ func (w *Window) line(fromX, fromY, toX, toY int) {
 }
 
 func (w *Window) DrawRect(x, y, width, height int, color Color) {
-	if width == 0 || height == 0 {
+	if width <= 0 || height <= 0 {
 		return
 	}
 	w.setColor(color)
@@ -143,7 +143,7 @@ func (w *Window) DrawRect(x, y, width, height int, color Color) {
 }
 
 func (w *Window) FillRect(x, y, width, height int, color Color) {
-	if width == 0 || height == 0 {
+	if width <= 0 || height <= 0 {
 		return
 	}
 	w.setColor(color)
