@@ -27,6 +27,7 @@ type Window struct {
 	textures    map[string]*sdl.Texture
 	fontTexture *sdl.Texture
 	keyDown     map[string]bool
+	mouseDown   map[MouseButton]bool
 }
 
 type MouseClick struct {
@@ -66,12 +67,13 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 
 	win := &Window{
-		Running:  true,
-		update:   update,
-		window:   window,
-		renderer: renderer,
-		textures: make(map[string]*sdl.Texture),
-		keyDown:  make(map[string]bool),
+		Running:   true,
+		update:    update,
+		window:    window,
+		renderer:  renderer,
+		textures:  make(map[string]*sdl.Texture),
+		keyDown:   make(map[string]bool),
+		mouseDown: make(map[MouseButton]bool),
 	}
 	win.createBitmapFont()
 	win.runMainLoop()
@@ -107,6 +109,10 @@ func (w *Window) runMainLoop() {
 			case *sdl.MouseButtonEvent:
 				if event.State == sdl.PRESSED {
 					w.Clicks = append(w.Clicks, makeClick(event))
+					w.mouseDown[MouseButton(event.Button)] = true
+				}
+				if event.State == sdl.RELEASED {
+					w.mouseDown[MouseButton(event.Button)] = false
 				}
 			case *sdl.KeyDownEvent:
 				w.setKeyDown(event.Keysym.Sym, true)
@@ -149,7 +155,7 @@ func (w *Window) close() {
 	}
 }
 
-func (w *Window) WasPressed(key string) bool {
+func (w *Window) WasKeyPressed(key string) bool {
 	for _, e := range w.Events {
 		switch event := e.(type) {
 		case *sdl.KeyDownEvent:
@@ -174,3 +180,7 @@ func isKey(name string, key sdl.Keycode) bool {
 }
 
 var keyToString map[sdl.Keycode]string
+
+func (w *Window) IsMouseDown(button MouseButton) bool {
+	return w.mouseDown[button]
+}
