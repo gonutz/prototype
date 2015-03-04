@@ -10,12 +10,27 @@ type Color struct{ R, G, B, A float32 }
 
 var Black = Color{0, 0, 0, 1}
 var White = Color{1, 1, 1, 1}
+var Gray = Color{0.5, 0.5, 0.5, 1}
+var LightGray = Color{0.75, 0.75, 0.75, 1}
+var DarkGray = Color{0.25, 0.25, 0.25, 1}
 var Red = Color{1, 0, 0, 1}
+var LightRed = Color{1, 0.5, 0.5, 1}
+var DarkRed = Color{0.5, 0, 0, 1}
 var Green = Color{0, 1, 0, 1}
+var LightGreen = Color{0.5, 1, 0.5, 1}
+var DarkGreen = Color{0, 0.5, 0, 1}
 var Blue = Color{0, 0, 1, 1}
+var LightBlue = Color{0.5, 0.5, 1, 1}
+var DarkBlue = Color{0, 0, 0.5, 1}
 var Purple = Color{1, 0, 1, 1}
+var LightPurple = Color{1, 0.5, 1, 1}
+var DarkPurple = Color{0.5, 0, 0.5, 1}
 var Yellow = Color{1, 1, 0, 1}
+var LightYellow = Color{1, 1, 0.5, 1}
+var DarkYellow = Color{0.5, 0.5, 0, 1}
 var Cyan = Color{0, 1, 1, 1}
+var LightCyan = Color{0.5, 1, 1, 1}
+var DarkCyan = Color{0, 0.5, 0.5, 1}
 
 func (w *Window) DrawEllipse(x, y, width, height int, color Color) {
 	if width == 1 {
@@ -42,59 +57,39 @@ func ellipsePoints(left, top, width, height int) []point {
 		return []point{{left, top}, {left, top}}
 	}
 
-	points := make([]point, 0, height*2)
 	centerX := left + width/2
 	centerY := top + height/2
-	xRadius := width / 2
-	yRadius := height / 2
-	a2 := 2 * xRadius * xRadius
-	b2 := 2 * yRadius * yRadius
-	x := xRadius
-	y := 0
-	addPoint := func() {
+	points := make([]point, 0, height*2)
+	addPoint := func(x, y int) {
 		points = append(points, point{centerX + x, centerY + y})
 		points = append(points, point{centerX + x, centerY - y})
 		points = append(points, point{centerX - x, centerY + y})
 		points = append(points, point{centerX - x, centerY - y})
 	}
-	xChange := yRadius * yRadius * (1 - 2*xRadius)
-	yChange := xRadius * xRadius
-	ellipseError := 0
-	stoppingX := b2 * xRadius
-	stoppingY := 0
-	for stoppingX >= stoppingY {
-		addPoint()
-		y++
-		stoppingY += a2
-		ellipseError += yChange
-		yChange += a2
-		if 2*ellipseError+xChange > 0 {
-			x--
-			stoppingX -= b2
-			ellipseError += xChange
-			xChange += b2
+
+	xRadius := width / 2
+	yRadius := height / 2
+	a2 := xRadius * xRadius
+	b2 := yRadius * yRadius
+	fa2 := 4 * a2
+	fb2 := 4 * b2
+
+	for x, y, sigma := 0, yRadius, 2*b2+a2*(1-2*yRadius); b2*x <= a2*y; x++ {
+		addPoint(x, y)
+		if sigma >= 0 {
+			sigma += fa2 * (1 - y)
+			y--
 		}
+		sigma += b2 * ((4 * x) + 6)
 	}
 
-	x = 0
-	y = yRadius
-	xChange = yRadius * yRadius
-	yChange = xRadius * xRadius * (1 - 2*yRadius)
-	ellipseError = 0
-	stoppingX = 0
-	stoppingY = a2 * yRadius
-	for stoppingX <= stoppingY {
-		addPoint()
-		x++
-		stoppingX += b2
-		ellipseError += xChange
-		xChange += b2
-		if 2*ellipseError+yChange > 0 {
-			y--
-			stoppingY -= a2
-			ellipseError += yChange
-			yChange += a2
+	for x, y, sigma := xRadius, 0, 2*a2+b2*(1-2*xRadius); a2*y <= b2*x; y++ {
+		addPoint(x, y)
+		if sigma >= 0 {
+			sigma += fb2 * (1 - x)
+			x--
 		}
+		sigma += a2 * ((4 * y) + 6)
 	}
 
 	return points
