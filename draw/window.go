@@ -96,7 +96,7 @@ func (w *Window) runMainLoop() {
 	w.renderer.SetDrawColor(0, 0, 0, 0)
 
 	lastUpdateTime := time.Now().Add(-time.Hour)
-	const updateInterval = 0.04
+	const updateInterval = 1.0 / 60.0
 	for w.Running {
 		for e := sdl.PollEvent(); e != nil; e = sdl.PollEvent() {
 			switch event := e.(type) {
