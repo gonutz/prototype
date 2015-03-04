@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/veandco/go-sdl2/sdl_image"
+	"math"
 )
 
 type Color struct{ R, G, B, A float32 }
@@ -33,66 +34,70 @@ var LightCyan = Color{0.5, 1, 1, 1}
 var DarkCyan = Color{0, 0.5, 0.5, 1}
 
 func (w *Window) DrawEllipse(x, y, width, height int, color Color) {
-	if width == 1 {
-		w.DrawLine(x, y, x, y+height-1, color)
-		return
-	}
-	if height == 1 {
-		w.DrawLine(x, y, x+width-1, y, color)
-		return
-	}
-
 	points := ellipsePoints(x, y, width, height)
-	w.setColor(color)
-	for _, p := range points {
-		w.DrawPoint(p.x, p.y, color)
+	if len(points) > 0 {
+		w.setColor(color)
+		w.renderer.DrawPoints(makeSDLpoints(points))
 	}
+}
+
+func (w *Window) FillEllipse(x, y, width, height int, color Color) {
+	points := ellipsePoints(x, y, width, height)
+	if len(points) > 0 {
+		w.setColor(color)
+		w.renderer.DrawLines(makeSDLpoints(points))
+	}
+}
+
+func makeSDLpoints(from []point) []sdl.Point {
+	p := make([]sdl.Point, len(from))
+	for i, in := range from {
+		p[i].X = int32(in.x)
+		p[i].Y = int32(in.y)
+	}
+	return p
 }
 
 func ellipsePoints(left, top, width, height int) []point {
 	if width <= 0 || height <= 0 {
 		return nil
 	}
-	if width == 1 && height == 1 {
-		return []point{{left, top}, {left, top}}
-	}
-
-	centerX := left + width/2
-	centerY := top + height/2
-	points := make([]point, 0, height*2)
-	addPoint := func(x, y int) {
-		points = append(points, point{centerX + x, centerY + y})
-		points = append(points, point{centerX + x, centerY - y})
-		points = append(points, point{centerX - x, centerY + y})
-		points = append(points, point{centerX - x, centerY - y})
-	}
-
-	xRadius := width / 2
-	yRadius := height / 2
-	a2 := xRadius * xRadius
-	b2 := yRadius * yRadius
-	fa2 := 4 * a2
-	fb2 := 4 * b2
-
-	for x, y, sigma := 0, yRadius, 2*b2+a2*(1-2*yRadius); b2*x <= a2*y; x++ {
-		addPoint(x, y)
-		if sigma >= 0 {
-			sigma += fa2 * (1 - y)
-			y--
+	var points []point
+	a := float64(width) / 2.0
+	b := float64(height) / 2.0
+	bSquare := b * b
+	bSquareOverASquare := bSquare / (a * a)
+	yOf := func(x float64) float64 {
+		square := bSquare - x*x*bSquareOverASquare
+		if square <= 0.0 {
+			return 0.0
 		}
-		sigma += b2 * ((4 * x) + 6)
+		return math.Sqrt(square)
 	}
-
-	for x, y, sigma := xRadius, 0, 2*a2+b2*(1-2*xRadius); a2*y <= b2*x; y++ {
-		addPoint(x, y)
-		if sigma >= 0 {
-			sigma += fb2 * (1 - x)
-			x--
+	round := func(x float64) int { return int(x + 0.49) }
+	startX := 0.0
+	if width%2 == 0 {
+		startX = 0.5
+	}
+	endX := a + 1.1
+	lastY := round(yOf(startX))
+	for x := startX; x < endX; x += 1.0 {
+		ix := int(x)
+		iy := round(yOf(x))
+		for y := lastY; y != iy; y-- {
+			points = append(points, point{ix, y})
 		}
-		sigma += a2 * ((4 * y) + 6)
+		points = append(points, point{ix, iy})
+		lastY = iy
 	}
-
-	return points
+	all := make([]point, len(points)*4)
+	for i, p := range points {
+		all[i*4+0] = point{p.x + left + width/2, p.y + top + height/2}
+		all[i*4+1] = point{-p.x + left + width/2, p.y + top + height/2}
+		all[i*4+2] = point{p.x + left + width/2, -p.y + top + height/2}
+		all[i*4+3] = point{-p.x + left + width/2, -p.y + top + height/2}
+	}
+	return all
 }
 
 type point struct{ x, y int }
