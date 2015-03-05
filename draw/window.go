@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/veandco/go-sdl2/sdl_image"
+	"github.com/veandco/go-sdl2/sdl_mixer"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ type Window struct {
 	window      *sdl.Window
 	renderer    *sdl.Renderer
 	textures    map[string]*sdl.Texture
+	soundChunks map[string]*mix.Chunk
 	fontTexture *sdl.Texture
 	keyDown     map[string]bool
 	mouseDown   map[MouseButton]bool
@@ -66,17 +68,24 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	window.SetTitle(title)
 	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 
+	if !mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 1, 512) {
+		return errors.New("Unable to initialize audio system.")
+	}
+	defer mix.CloseAudio()
+
 	win := &Window{
-		Running:   true,
-		update:    update,
-		window:    window,
-		renderer:  renderer,
-		textures:  make(map[string]*sdl.Texture),
-		keyDown:   make(map[string]bool),
-		mouseDown: make(map[MouseButton]bool),
+		Running:     true,
+		update:      update,
+		window:      window,
+		renderer:    renderer,
+		textures:    make(map[string]*sdl.Texture),
+		soundChunks: make(map[string]*mix.Chunk),
+		keyDown:     make(map[string]bool),
+		mouseDown:   make(map[MouseButton]bool),
 	}
 	win.createBitmapFont()
 	win.runMainLoop()
+	win.close()
 
 	windowRunningMutex.Unlock()
 	return nil
@@ -94,7 +103,6 @@ func (w *Window) createBitmapFont() {
 
 func (w *Window) runMainLoop() {
 	w.renderer.SetDrawColor(0, 0, 0, 0)
-
 	lastUpdateTime := time.Now().Add(-time.Hour)
 	const updateInterval = 1.0 / 60.0
 	for w.Running {
@@ -136,8 +144,6 @@ func (w *Window) runMainLoop() {
 			w.renderer.Present()
 		}
 	}
-
-	w.close()
 }
 
 func makeClick(event *sdl.MouseButtonEvent) MouseClick {
@@ -145,6 +151,11 @@ func makeClick(event *sdl.MouseButtonEvent) MouseClick {
 }
 
 func (w *Window) close() {
+	for _, sound := range w.soundChunks {
+		if sound != nil {
+			sound.Free()
+		}
+	}
 	for _, texture := range w.textures {
 		if texture != nil {
 			texture.Destroy()

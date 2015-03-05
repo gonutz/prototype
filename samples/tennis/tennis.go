@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/gonutz/prototype/draw"
 	"math"
+	"os"
+	"path/filepath"
 )
 
 func main() {
@@ -20,6 +22,10 @@ func main() {
 	resetAfterScore(1.0)
 	leftScore := 0
 	rightScore := 0
+	samplesPath := filepath.Join(os.Getenv("GOPATH"), "src", "github.com", "gonutz", "prototype", "samples")
+	scoreSound := filepath.Join(samplesPath, "tennis", "score.wav")
+	panelBounceSound := filepath.Join(samplesPath, "tennis", "bounce.wav")
+	wallBounceSound := filepath.Join(samplesPath, "tennis", "bounce2.wav")
 
 	draw.RunWindow("Tennis - press N to restart", 640, 480, func(window *draw.Window) {
 
@@ -52,25 +58,32 @@ func main() {
 
 		for i := 0; i < 4; i++ {
 			ball.move(0.25)
-			ball.collideLeft(leftPanel)
-			ball.collideRight(rightPanel)
-			ball.collideWall(480)
+			if ball.collideLeft(leftPanel) || ball.collideRight(rightPanel) {
+				window.PlaySoundFile(panelBounceSound)
+			}
+			if ball.collideWall(480) {
+				window.PlaySoundFile(wallBounceSound)
+			}
 		}
 
 		if ball.isInLeftGoal() {
 			rightScore++
+			window.PlaySoundFile(scoreSound)
 			resetAfterScore(1.0)
 		}
 		if ball.isInRightGoal(640) {
 			leftScore++
+			window.PlaySoundFile(scoreSound)
 			resetAfterScore(-1.0)
 		}
 
 		window.FillRect(0, 0, 640, 480, draw.DarkGreen)
+		window.DrawRect(50, 50, 540, 380, draw.LightGreen)
+		window.DrawLine(320, 50, 320, 429, draw.LightGreen)
 		leftPanel.draw(window)
 		rightPanel.draw(window)
 		ball.draw(window)
-		printScore(leftScore, rightScore, window)
+		drawScore(leftScore, rightScore, window)
 
 	})
 }
@@ -103,14 +116,14 @@ func (c *circle) move(dt float32) {
 	c.centerY += c.vy * dt
 }
 
-func (c *circle) collideLeft(r *rect) {
+func (c *circle) collideLeft(r *rect) bool {
 	if c.vx > 0 {
-		return
+		return false
 	}
-	c.collide(r, r.x+r.w)
+	return c.collide(r, r.x+r.w)
 }
 
-func (c *circle) collide(r *rect, x int) {
+func (c *circle) collide(r *rect, x int) bool {
 	cx, cy := int(c.centerX), int(c.centerY)
 	r2 := c.radius * c.radius
 	pointInCircle := func(x, y int) bool {
@@ -120,9 +133,10 @@ func (c *circle) collide(r *rect, x int) {
 		if pointInCircle(x, y) {
 			c.vx = -c.vx
 			c.shiftAngle(float32(y-r.y) / float32(r.h-1))
-			return
+			return true
 		}
 	}
+	return false
 }
 
 func (c *circle) shiftAngle(heightPercentag float32) {
@@ -139,18 +153,20 @@ func (c *circle) shiftAngle(heightPercentag float32) {
 	c.vy = float32(dy * length)
 }
 
-func (c *circle) collideRight(r *rect) {
+func (c *circle) collideRight(r *rect) bool {
 	if c.vx < 0 {
-		return
+		return false
 	}
-	c.collide(r, r.x)
+	return c.collide(r, r.x)
 }
 
-func (c *circle) collideWall(height int) {
+func (c *circle) collideWall(height int) bool {
 	if c.centerY < float32(c.radius) ||
 		c.centerY+float32(c.radius) >= float32(height) {
 		c.vy = -c.vy
+		return true
 	}
+	return false
 }
 
 func (c *circle) isInLeftGoal() bool {
@@ -170,7 +186,7 @@ func keepInYBounds(r *rect, height int) {
 	}
 }
 
-func printScore(left, right int, window *draw.Window) {
+func drawScore(left, right int, window *draw.Window) {
 	l, r := fmt.Sprintf("%v", left), fmt.Sprintf("%v", right)
 	for len(l) < 5 {
 		l = " " + l
@@ -178,5 +194,5 @@ func printScore(left, right int, window *draw.Window) {
 	for len(r) < 5 {
 		r = r + " "
 	}
-	window.DrawScaledText(l+" : "+r, 200, 10, 2.0, draw.Black)
+	window.DrawScaledText(l+" : "+r, 204, 10, 2.0, draw.Black)
 }
