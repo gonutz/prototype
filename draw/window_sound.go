@@ -11,7 +11,7 @@ func (w *Window) PlaySoundFile(path string) error {
 	if sound == nil {
 		return errors.New(`File "` + path + `" could not be loaded.`)
 	}
-	sound.PlayChannel(0, 0)
+	sound.PlayChannel(-1, 0)
 	return nil
 }
 
