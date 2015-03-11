@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/gonutz/prototype/draw"
 	"math"
@@ -9,12 +10,21 @@ import (
 )
 
 func main() {
+	speed := flag.Float64("speed", 1.0, "The regular speed is multiplied by this factor")
+	flag.Parse()
+	if *speed < 0.01 {
+		*speed = 0.01
+	}
+	if *speed > 100 {
+		*speed = 100
+	}
+
 	var leftPanel, rightPanel *rect
 	var ball *circle
 	var resetAfterScore = func(ballVelocitySign float32) {
 		ball = &circle{
 			320, 240, 5,
-			ballVelocitySign * 8.0, 0.0,
+			float32(*speed) * ballVelocitySign * 8.0, 0.0,
 		}
 		leftPanel = &rect{10, 200, 10, 80}
 		rightPanel = &rect{620, 200, 10, 80}
