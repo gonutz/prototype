@@ -181,6 +181,19 @@ func (w *Window) DrawImageFile(path string, x, y int) error {
 	return nil
 }
 
+func (w *Window) DrawImageFilePortion(path string, srcX, srcY, srcW, srcH, toX, toY int) error {
+	w.loadImageIfNecessary(path)
+	img := w.textures[path]
+	if img == nil {
+		return errors.New(`File "` + path + `" could not be loaded.`)
+	}
+	w.renderer.Copy(
+		img,
+		&sdl.Rect{int32(srcX), int32(srcY), int32(srcW), int32(srcH)},
+		&sdl.Rect{int32(toX), int32(toY), int32(srcW), int32(srcH)})
+	return nil
+}
+
 func (w *Window) loadImageIfNecessary(path string) {
 	if _, ok := w.textures[path]; ok {
 		return
