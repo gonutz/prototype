@@ -66,8 +66,12 @@ func main() {
 		keepInYBounds(leftPanel, 480)
 		keepInYBounds(rightPanel, 480)
 
-		for i := 0; i < 4; i++ {
-			ball.move(0.25)
+		timeDivision := 4
+		if *speed > 1.0 {
+			timeDivision = int(float64(timeDivision) * *speed)
+		}
+		for i := 0; i < timeDivision; i++ {
+			ball.move(1.0 / float32(timeDivision))
 			if ball.collideLeft(leftPanel) || ball.collideRight(rightPanel) {
 				window.PlaySoundFile(panelBounceSound)
 			}
