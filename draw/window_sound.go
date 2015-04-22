@@ -19,5 +19,5 @@ func (w *Window) loadSoundIfNecessary(path string) {
 	if _, ok := w.soundChunks[path]; ok {
 		return
 	}
-	w.soundChunks[path] = mix.LoadWAV(path)
+	w.soundChunks[path], _ = mix.LoadWAV(path)
 }

@@ -68,8 +68,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	window.SetTitle(title)
 	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 
-	if !mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 1, 512) {
-		return errors.New("Unable to initialize audio system.")
+	if err := mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 1, 512); err != nil {
+		return err
 	}
 	defer mix.CloseAudio()
 
