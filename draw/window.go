@@ -195,3 +195,7 @@ var keyToString map[sdl.Keycode]string
 func (w *Window) IsMouseDown(button MouseButton) bool {
 	return w.mouseDown[button]
 }
+
+func (w *Window) Close() {
+	w.Running = false
+}
