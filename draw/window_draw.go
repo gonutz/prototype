@@ -233,8 +233,8 @@ func (w *Window) DrawScaledText(text string, x, y int, scale float32, color Colo
 			dest.Y += dest.H
 			continue
 		}
-		src.X = int32((int(char) % 16) * width)
-		src.Y = int32((int(char) / 16) * height)
+		src.X = int32((int(char) % 16)) * width
+		src.Y = int32((int(char) / 16)) * height
 		w.renderer.Copy(w.fontTexture, &src, &dest)
 		dest.X += dest.W
 	}
