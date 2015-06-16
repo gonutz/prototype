@@ -5,6 +5,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/veandco/go-sdl2/sdl_image"
 	"math"
+	"strings"
 )
 
 type Color struct{ R, G, B, A float32 }
@@ -210,6 +211,29 @@ func (w *Window) loadImageIfNecessary(path string) {
 		return
 	}
 	w.textures[path] = texture
+}
+
+func (win *Window) GetTextSize(text string) (w, h int) {
+	return win.GetScaledTextSize(text, 1.0)
+}
+
+func (win *Window) GetScaledTextSize(text string, scale float32) (w, h int) {
+	if len(text) == 0 {
+		return 0, 0
+	}
+	_, _, width, height, _ := win.fontTexture.Query()
+	width /= 16
+	height /= 16
+	w = int(float32(width) * scale)
+	h = int(float32(height) * scale)
+	lines := strings.Split(text, "\n")
+	maxLineW := 0
+	for _, line := range lines {
+		if len(line) > maxLineW {
+			maxLineW = len(line)
+		}
+	}
+	return w * maxLineW, h * len(lines)
 }
 
 func (w *Window) DrawText(text string, x, y int, color Color) {

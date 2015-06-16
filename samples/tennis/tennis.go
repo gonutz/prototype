@@ -208,5 +208,8 @@ func drawScore(left, right int, window *draw.Window) {
 	for len(r) < 5 {
 		r = r + " "
 	}
-	window.DrawScaledText(l+" : "+r, 204, 10, 2.0, draw.Black)
+	scoreText := l + " : " + r
+	const scale = 2.0
+	w, _ := window.GetScaledTextSize(scoreText, scale)
+	window.DrawScaledText(scoreText, 320-w/2+1, 10, scale, draw.Black)
 }
