@@ -182,16 +182,19 @@ func (w *Window) DrawImageFile(path string, x, y int) error {
 	return nil
 }
 
-func (win *Window) DrawImageFileTo(path string, x, y, w, h int) error {
+func (win *Window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 	win.loadImageIfNecessary(path)
 	img := win.textures[path]
 	if img == nil {
 		return errors.New(`File "` + path + `" could not be loaded.`)
 	}
-	win.renderer.Copy(
+	win.renderer.CopyEx(
 		img,
 		nil,
-		&sdl.Rect{int32(x), int32(y), int32(w), int32(h)})
+		&sdl.Rect{int32(x), int32(y), int32(w), int32(h)},
+		float64(degrees),
+		nil,
+		sdl.FLIP_NONE)
 	return nil
 }
 

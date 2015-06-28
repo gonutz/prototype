@@ -142,6 +142,8 @@ func (w *Window) runMainLoop() {
 
 			lastUpdateTime = now
 			w.renderer.Present()
+		} else {
+			sdl.Delay(1)
 		}
 	}
 }
