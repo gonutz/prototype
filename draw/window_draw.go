@@ -33,6 +33,8 @@ var DarkYellow = Color{0.5, 0.5, 0, 1}
 var Cyan = Color{0, 1, 1, 1}
 var LightCyan = Color{0.5, 1, 1, 1}
 var DarkCyan = Color{0, 0.5, 0.5, 1}
+var Brown = Color{0.5, 0.2, 0, 1}
+var LightBrown = Color{0.75, 0.3, 0, 1}
 
 func (w *Window) DrawEllipse(x, y, width, height int, color Color) {
 	points := ellipsePoints(x, y, width, height)
@@ -234,6 +236,7 @@ func (win *Window) GetTextSize(text string) (w, h int) {
 }
 
 func (win *Window) GetScaledTextSize(text string, scale float32) (w, h int) {
+	sdl.SetHint(sdl.HINT_RENDER_SCALE_QUALITY, "linear")
 	if len(text) == 0 {
 		return 0, 0
 	}
