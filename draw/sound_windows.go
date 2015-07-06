@@ -10,10 +10,13 @@ var winmm syscall.Handle
 var playSoundW uintptr
 var loaded bool
 
-func playSoundFile(path string) error {
-	// TODO
-	return errors.New("PlaySoundW on Windows is way too slow!")
+const (
+	SND_ASYNC     = 1
+	SND_NODEFAULT = 2
+	SND_FILENAME  = 0x20000
+)
 
+func playSoundFile(path string) error {
 	if !loaded {
 		var err error
 		winmm, err = syscall.LoadLibrary("Winmm.dll")
@@ -29,6 +32,13 @@ func playSoundFile(path string) error {
 	// BOOL PlaySound(LPCTSTR pszSound, HMODULE hmod, DWORD fdwSound);
 	argCount := uintptr(3)
 	filename := uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(path)))
-	syscall.Syscall(uintptr(playSoundW), argCount, filename, 0, 0)
+	flags := uintptr(SND_ASYNC | SND_FILENAME | SND_NODEFAULT)
+	ret, _, callErr := syscall.Syscall(uintptr(playSoundW), argCount, filename, 0, flags)
+	if callErr != 0 {
+		return callErr
+	}
+	if int(ret) == 0 {
+		return errors.New("PlaySoundW returned FALSE")
+	}
 	return nil
 }
