@@ -21,7 +21,6 @@ type Window interface {
 	FillEllipse(x, y, width, height int, color Color)
 	DrawImageFile(path string, x, y int) error
 	DrawImageFileTo(path string, x, y, w, h, degrees int) error
-	DrawImageFilePortion(path string, srcX, srcY, srcW, srcH, toX, toY int) error
 
 	GetTextSize(text string) (w, h int)
 	GetScaledTextSize(text string, scale float32) (w, h int)

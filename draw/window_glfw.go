@@ -49,6 +49,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return err
 	}
 	gl.Ortho(0, float64(width), float64(height), 0, -1, 1)
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	w := &window{
 		running:  true,
@@ -212,8 +214,8 @@ func (w *window) loadTexture(r io.Reader, name string) (texture, error) {
 	gl.Enable(gl.TEXTURE_2D)
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.TexImage2D(
@@ -410,11 +412,33 @@ func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 
 type point struct{ x, y float32 }
 
+func (win *window) GetTextSize(text string) (w, h int) {
+	return win.GetScaledTextSize(text, 1.0)
+}
+
+func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
+	if len(text) == 0 {
+		return 0, 0
+	}
+	fontTexture, ok := win.textures[fontTextureID]
+	if !ok {
+		return 0, 0
+	}
+	w = int(float32(fontTexture.w/16) * scale)
+	h = int(float32(fontTexture.h/16) * scale)
+	lines := strings.Split(text, "\n")
+	maxLineW := 0
+	for _, line := range lines {
+		if len(line) > maxLineW {
+			maxLineW = len(line)
+		}
+	}
+	return w * maxLineW, h * len(lines)
+}
+
 func (w *window) DrawText(text string, x, y int, color Color) {
 	w.DrawScaledText(text, x, y, 1.0, color)
 }
-
-// TODO implement the following functions
 
 const fontTextureID = "///font_texture"
 
@@ -427,24 +451,53 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 			panic(err)
 		}
 	}
-	println(fontTexture.w, fontTexture.h)
+
+	width, height := int32(fontTexture.w/16), int32(fontTexture.h/16)
+	width = int32(float32(width)*scale + 0.5)
+	height = int32(float32(height)*scale + 0.5)
+
+	var srcX, srcY float32
+	destX, destY := int32(x), int32(y)
+
+	gl.Enable(gl.TEXTURE_2D)
+	gl.BindTexture(gl.TEXTURE_2D, fontTexture.id)
+
+	gl.Begin(gl.QUADS)
+	for _, char := range []byte(text) {
+		if char == '\n' {
+			destX = int32(x)
+			destY += height
+			continue
+		}
+		srcX = float32(int(char)%16) / 16
+		srcY = float32(int(char)/16) / 16
+
+		gl.Color4f(color.R, color.G, color.B, color.A)
+		gl.TexCoord2f(srcX, srcY)
+		gl.Vertex2i(destX, destY)
+
+		gl.Color4f(color.R, color.G, color.B, color.A)
+		gl.TexCoord2f(srcX+1.0/16, srcY)
+		gl.Vertex2i(destX+width, destY)
+
+		gl.Color4f(color.R, color.G, color.B, color.A)
+		gl.TexCoord2f(srcX+1.0/16, srcY+1.0/16)
+		gl.Vertex2i(destX+width, destY+height)
+
+		gl.Color4f(color.R, color.G, color.B, color.A)
+		gl.TexCoord2f(srcX, srcY+1.0/16)
+		gl.Vertex2i(destX, destY+height)
+
+		destX += width
+	}
+	gl.End()
+	gl.Disable(gl.TEXTURE_2D)
 }
 
-func (w *window) DrawImageFilePortion(path string, srcX, srcY, srcW, srcH, toX, toY int) error {
-	return errors.New("not yet implemented")
-}
-
-func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) { return 0, 0 }
-
-func (win *window) GetTextSize(text string) (w, h int) {
-	return win.GetScaledTextSize(text, 1)
-}
-
+// TODO fix WAV sounds for the GLWF backend
 func (w *window) PlaySoundFile(path string) error {
 	return playSoundFile(path)
 }
-
-// TODO implement the functions above
 
 func init() {
 	runtime.LockOSThread()

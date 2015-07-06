@@ -394,7 +394,6 @@ func (win *window) GetTextSize(text string) (w, h int) {
 }
 
 func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
-	sdl.SetHint(sdl.HINT_RENDER_SCALE_QUALITY, "linear")
 	if len(text) == 0 {
 		return 0, 0
 	}
@@ -424,8 +423,8 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	height /= 16
 	src := sdl.Rect{0, 0, int32(width), int32(height)}
 	dest := src
-	dest.W = int32(float32(dest.W) * scale)
-	dest.H = int32(float32(dest.H) * scale)
+	dest.W = int32(float32(dest.W)*scale + 0.5)
+	dest.H = int32(float32(dest.H)*scale + 0.5)
 	dest.X = int32(x)
 	dest.Y = int32(y)
 	for _, char := range []byte(text) {
