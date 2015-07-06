@@ -36,7 +36,7 @@ func main() {
 		outline:  []vec2{{-5, -5}, {5, -5}, {5, 5}, {-5, 5}, {-5, -5}},
 	})
 
-	draw.RunWindow("Comets", screenWidth, screenHeight, func(window *draw.Window) {
+	draw.RunWindow("Comets", screenWidth, screenHeight, func(window draw.Window) {
 		if window.WasKeyPressed("escape") {
 			window.Close()
 		}
@@ -133,7 +133,7 @@ func newShip() *ship {
 	}
 }
 
-func (s *ship) draw(window *draw.Window) {
+func (s *ship) draw(window draw.Window) {
 	screenPoints := s.outlineToScreen()
 	for i := 1; i < len(screenPoints); i++ {
 		a, b := screenPoints[i-1], screenPoints[i]
@@ -180,7 +180,7 @@ func (s *ship) direction() vec2 {
 	return vec2{dx, dy}
 }
 
-func (s *ship) setBoosting(boosting bool, window *draw.Window) {
+func (s *ship) setBoosting(boosting bool, window draw.Window) {
 	if !s.boosting && boosting {
 		window.PlaySoundFile(getPathTo("boost.wav"))
 	}
@@ -240,7 +240,7 @@ func (b *bullet) move() {
 	b.position = b.position.plus(b.speed)
 }
 
-func (b *bullet) draw(window *draw.Window) {
+func (b *bullet) draw(window draw.Window) {
 	window.DrawPoint(int(b.position.x+0.5), int(b.position.y+0.5), draw.White)
 }
 
@@ -256,7 +256,7 @@ func (c *comet) update() {
 	c.position = c.position.plus(c.speed)
 }
 
-func (c *comet) draw(window *draw.Window) {
+func (c *comet) draw(window draw.Window) {
 	outline := c.toScreenPoints(c.outline)
 	for i := 1; i < len(outline); i++ {
 		window.DrawLine(outline[i-1].x, outline[i-1].y, outline[i].x, outline[i].y, draw.White)

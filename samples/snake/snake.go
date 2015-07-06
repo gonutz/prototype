@@ -48,10 +48,10 @@ func main() {
 
 	resetGame()
 
-	draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, func(window *draw.Window) {
+	draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, func(window draw.Window) {
 
 		if window.WasKeyPressed("escape") || window.WasKeyPressed("Q") {
-			window.Running = false
+			window.Close()
 		}
 		if window.WasKeyPressed("return") {
 			resetGame()
@@ -113,7 +113,7 @@ type snake struct {
 	dx, dy int
 }
 
-func (s *snake) drawBody(window *draw.Window) {
+func (s *snake) drawBody(window draw.Window) {
 	for _, p := range s.body {
 		x := p.x * tileSize
 		y := p.y * tileSize
@@ -122,7 +122,7 @@ func (s *snake) drawBody(window *draw.Window) {
 	}
 }
 
-func (s *snake) drawClaws(window *draw.Window, frame int) {
+func (s *snake) drawClaws(window draw.Window, frame int) {
 	head := s.head()
 	x := head.x * tileSize
 	y := head.y * tileSize
@@ -145,7 +145,7 @@ func (s *snake) drawClaws(window *draw.Window, frame int) {
 	}
 }
 
-func (s *snake) drawEyes(window *draw.Window) {
+func (s *snake) drawEyes(window draw.Window) {
 	head := s.head()
 	x := head.x * tileSize
 	y := head.y * tileSize
@@ -164,7 +164,7 @@ func (s *snake) drawEyes(window *draw.Window) {
 	}
 }
 
-func (s *snake) draw(window *draw.Window, frame int) {
+func (s *snake) draw(window draw.Window, frame int) {
 	s.drawBody(window)
 	s.drawClaws(window, frame)
 	s.drawEyes(window)
@@ -211,7 +211,7 @@ func (s *snake) bitItself() bool {
 	return false
 }
 
-func drawCookie(cookie point, window *draw.Window) {
+func drawCookie(cookie point, window draw.Window) {
 	const margin = 4
 	x := cookie.x*tileSize + margin
 	y := cookie.y*tileSize + margin
@@ -223,7 +223,7 @@ func drawCookie(cookie point, window *draw.Window) {
 	window.DrawPoint(x+7, y+8, draw.Black)
 }
 
-func drawScore(window *draw.Window, score int) {
+func drawScore(window draw.Window, score int) {
 	cookieText := "cookies"
 	if score == 1 {
 		cookieText = "cookie"

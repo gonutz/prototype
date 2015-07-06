@@ -1,35 +1,34 @@
 package draw
 
-import (
-	"errors"
-	"github.com/veandco/go-sdl2/sdl"
-	"github.com/veandco/go-sdl2/sdl_image"
-	"github.com/veandco/go-sdl2/sdl_mixer"
-	"strings"
-	"sync"
-	"time"
-	"unsafe"
-)
-
 // UpdateFunction is used as a callback when creating a window. It is called
 // regularly and you can do all your event handling and drawing in it.
-type UpdateFunction func(window *Window)
+type UpdateFunction func(window Window)
 
-type Window struct {
-	Running    bool
-	Events     []sdl.Event
-	MouseMoved bool
-	Mouse      struct{ X, Y int }
-	Clicks     []MouseClick
+type Window interface {
+	Close()
 
-	update      UpdateFunction
-	window      *sdl.Window
-	renderer    *sdl.Renderer
-	textures    map[string]*sdl.Texture
-	soundChunks map[string]*mix.Chunk
-	fontTexture *sdl.Texture
-	keyDown     map[string]bool
-	mouseDown   map[MouseButton]bool
+	WasKeyPressed(key string) bool
+	IsKeyDown(key string) bool
+
+	IsMouseDown(button MouseButton) bool
+	Clicks() []MouseClick
+
+	DrawPoint(x, y int, color Color)
+	DrawLine(fromX, fromY, toX, toY int, color Color)
+	DrawRect(x, y, width, height int, color Color)
+	FillRect(x, y, width, height int, color Color)
+	DrawEllipse(x, y, width, height int, color Color)
+	FillEllipse(x, y, width, height int, color Color)
+	DrawImageFile(path string, x, y int) error
+	DrawImageFileTo(path string, x, y, w, h, degrees int) error
+	DrawImageFilePortion(path string, srcX, srcY, srcW, srcH, toX, toY int) error
+
+	GetTextSize(text string) (w, h int)
+	GetScaledTextSize(text string, scale float32) (w, h int)
+	DrawText(text string, x, y int, color Color)
+	DrawScaledText(text string, x, y int, scale float32, color Color)
+
+	PlaySoundFile(path string) error
 }
 
 type MouseClick struct {
@@ -37,167 +36,38 @@ type MouseClick struct {
 	Button MouseButton
 }
 
-type MouseButton uint8
+type MouseButton int
 
 const (
-	LeftButton   MouseButton = sdl.BUTTON_LEFT
-	MiddleButton             = sdl.BUTTON_MIDDLE
-	RightButton              = sdl.BUTTON_RIGHT
+	LeftButton MouseButton = iota
+	MiddleButton
+	RightButton
 )
 
-var windowRunningMutex sync.Mutex
+type Color struct{ R, G, B, A float32 }
 
-func RunWindow(title string, width, height int, update UpdateFunction) error {
-	windowRunningMutex.Lock()
-
-	if update == nil {
-		return errors.New("Update function was nil.")
-	}
-
-	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
-		return err
-	}
-	defer sdl.Quit()
-
-	window, renderer, err := sdl.CreateWindowAndRenderer(width, height, 0)
-	if err != nil {
-		return err
-	}
-	defer window.Destroy()
-	defer renderer.Destroy()
-	window.SetTitle(title)
-	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
-
-	if err := mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 1, 512); err != nil {
-		return err
-	}
-	defer mix.CloseAudio()
-
-	win := &Window{
-		Running:     true,
-		update:      update,
-		window:      window,
-		renderer:    renderer,
-		textures:    make(map[string]*sdl.Texture),
-		soundChunks: make(map[string]*mix.Chunk),
-		keyDown:     make(map[string]bool),
-		mouseDown:   make(map[MouseButton]bool),
-	}
-	win.createBitmapFont()
-	win.runMainLoop()
-	win.close()
-
-	windowRunningMutex.Unlock()
-	return nil
-}
-
-func (w *Window) createBitmapFont() {
-	ptr := unsafe.Pointer(&bitmapFontWhitePng[0])
-	rwops := sdl.RWFromMem(ptr, len(bitmapFontWhitePng))
-	texture, err := img.LoadTexture_RW(w.renderer, rwops, 0)
-	if err != nil {
-		panic(err)
-	}
-	w.fontTexture = texture
-}
-
-func (w *Window) runMainLoop() {
-	w.renderer.SetDrawColor(0, 0, 0, 0)
-	lastUpdateTime := time.Now().Add(-time.Hour)
-	const updateInterval = 1.0 / 60.0
-	for w.Running {
-		for e := sdl.PollEvent(); e != nil; e = sdl.PollEvent() {
-			switch event := e.(type) {
-			case *sdl.QuitEvent:
-				w.Running = false
-			case *sdl.MouseMotionEvent:
-				w.Mouse.X = int(event.X)
-				w.Mouse.Y = int(event.Y)
-				w.MouseMoved = true
-			case *sdl.MouseButtonEvent:
-				if event.State == sdl.PRESSED {
-					w.Clicks = append(w.Clicks, makeClick(event))
-					w.mouseDown[MouseButton(event.Button)] = true
-				}
-				if event.State == sdl.RELEASED {
-					w.mouseDown[MouseButton(event.Button)] = false
-				}
-			case *sdl.KeyDownEvent:
-				w.setKeyDown(event.Keysym.Sym, true)
-			case *sdl.KeyUpEvent:
-				w.setKeyDown(event.Keysym.Sym, false)
-			}
-			w.Events = append(w.Events, e)
-		}
-
-		now := time.Now()
-		if now.Sub(lastUpdateTime).Seconds() > updateInterval {
-			w.renderer.SetDrawColor(0, 0, 0, 0)
-			w.renderer.Clear()
-			w.update(w)
-
-			w.Events = nil
-			w.MouseMoved = false
-			w.Clicks = nil
-
-			lastUpdateTime = now
-			w.renderer.Present()
-		} else {
-			sdl.Delay(1)
-		}
-	}
-}
-
-func makeClick(event *sdl.MouseButtonEvent) MouseClick {
-	return MouseClick{int(event.X), int(event.Y), MouseButton(event.Button)}
-}
-
-func (w *Window) close() {
-	for _, sound := range w.soundChunks {
-		if sound != nil {
-			sound.Free()
-		}
-	}
-	for _, texture := range w.textures {
-		if texture != nil {
-			texture.Destroy()
-		}
-	}
-	if w.fontTexture != nil {
-		w.fontTexture.Destroy()
-	}
-}
-
-func (w *Window) WasKeyPressed(key string) bool {
-	for _, e := range w.Events {
-		switch event := e.(type) {
-		case *sdl.KeyDownEvent:
-			return isKey(key, event.Keysym.Sym)
-		}
-	}
-	return false
-}
-
-func (w *Window) setKeyDown(key sdl.Keycode, down bool) {
-	name := strings.ToLower(keyToString[key])
-	w.keyDown[name] = down
-}
-
-func (w *Window) IsKeyDown(key string) bool {
-	return w.keyDown[strings.ToLower(key)]
-}
-
-func isKey(name string, key sdl.Keycode) bool {
-	keyString, ok := keyToString[key]
-	return ok && strings.ToLower(keyString) == strings.ToLower(name)
-}
-
-var keyToString map[sdl.Keycode]string
-
-func (w *Window) IsMouseDown(button MouseButton) bool {
-	return w.mouseDown[button]
-}
-
-func (w *Window) Close() {
-	w.Running = false
-}
+var Black = Color{0, 0, 0, 1}
+var White = Color{1, 1, 1, 1}
+var Gray = Color{0.5, 0.5, 0.5, 1}
+var LightGray = Color{0.75, 0.75, 0.75, 1}
+var DarkGray = Color{0.25, 0.25, 0.25, 1}
+var Red = Color{1, 0, 0, 1}
+var LightRed = Color{1, 0.5, 0.5, 1}
+var DarkRed = Color{0.5, 0, 0, 1}
+var Green = Color{0, 1, 0, 1}
+var LightGreen = Color{0.5, 1, 0.5, 1}
+var DarkGreen = Color{0, 0.5, 0, 1}
+var Blue = Color{0, 0, 1, 1}
+var LightBlue = Color{0.5, 0.5, 1, 1}
+var DarkBlue = Color{0, 0, 0.5, 1}
+var Purple = Color{1, 0, 1, 1}
+var LightPurple = Color{1, 0.5, 1, 1}
+var DarkPurple = Color{0.5, 0, 0.5, 1}
+var Yellow = Color{1, 1, 0, 1}
+var LightYellow = Color{1, 1, 0.5, 1}
+var DarkYellow = Color{0.5, 0.5, 0, 1}
+var Cyan = Color{0, 1, 1, 1}
+var LightCyan = Color{0.5, 1, 1, 1}
+var DarkCyan = Color{0, 0.5, 0.5, 1}
+var Brown = Color{0.5, 0.2, 0, 1}
+var LightBrown = Color{0.75, 0.3, 0, 1}

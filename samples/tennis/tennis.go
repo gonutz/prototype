@@ -37,10 +37,10 @@ func main() {
 	panelBounceSound := filepath.Join(samplesPath, "tennis", "bounce.wav")
 	wallBounceSound := filepath.Join(samplesPath, "tennis", "bounce2.wav")
 
-	draw.RunWindow("Tennis - press N to restart", 640, 480, func(window *draw.Window) {
+	draw.RunWindow("Tennis - press N to restart", 640, 480, func(window draw.Window) {
 
 		if window.WasKeyPressed("escape") {
-			window.Running = false
+			window.Close()
 		}
 
 		if window.WasKeyPressed("n") {
@@ -106,7 +106,7 @@ type rect struct {
 	x, y, w, h int
 }
 
-func (r *rect) draw(window *draw.Window) {
+func (r *rect) draw(window draw.Window) {
 	window.FillRect(r.x, r.y, r.w, r.h, draw.White)
 	window.DrawRect(r.x, r.y, r.w, r.h, draw.Black)
 }
@@ -117,7 +117,7 @@ type circle struct {
 	vx, vy           float32
 }
 
-func (c *circle) draw(window *draw.Window) {
+func (c *circle) draw(window draw.Window) {
 	x := int(c.centerX) - c.radius
 	y := int(c.centerY) - c.radius
 	size := 2 * c.radius
@@ -200,7 +200,7 @@ func keepInYBounds(r *rect, height int) {
 	}
 }
 
-func drawScore(left, right int, window *draw.Window) {
+func drawScore(left, right int, window draw.Window) {
 	l, r := fmt.Sprintf("%v", left), fmt.Sprintf("%v", right)
 	for len(l) < 5 {
 		l = " " + l

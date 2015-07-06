@@ -38,9 +38,9 @@ func main() {
 		gameOverText = ""
 	}
 
-	draw.RunWindow("Space Shooter", 640, 480, func(window *draw.Window) {
+	draw.RunWindow("Space Shooter", 640, 480, func(window draw.Window) {
 		if window.WasKeyPressed("escape") {
-			window.Running = false
+			window.Close()
 		}
 		if window.WasKeyPressed("n") {
 			reset()
@@ -131,7 +131,7 @@ type spaceShip struct {
 	x, y int
 }
 
-func (s *spaceShip) draw(window *draw.Window) {
+func (s *spaceShip) draw(window draw.Window) {
 	window.FillEllipse(s.x, s.y, 20, 20, draw.Red)
 }
 
@@ -152,7 +152,7 @@ type bullet struct {
 
 const bulletSize = 8
 
-func (b *bullet) draw(window *draw.Window) {
+func (b *bullet) draw(window draw.Window) {
 	window.FillEllipse(b.x-bulletSize/2, b.y-bulletSize/2, bulletSize, bulletSize, draw.Green)
 }
 
@@ -160,7 +160,7 @@ func (b *bullet) move(dy int) {
 	b.y += dy
 }
 
-func (b *bullet) collide(e *enemy, window *draw.Window) {
+func (b *bullet) collide(e *enemy, window draw.Window) {
 	dx := abs(b.x - e.x)
 	dy := abs(b.y - e.y)
 	dist := int(math.Sqrt(float64(dx*dx+dy*dy)) + 0.5)
@@ -198,7 +198,7 @@ type enemy struct {
 	color      draw.Color
 }
 
-func (e *enemy) draw(window *draw.Window) {
+func (e *enemy) draw(window draw.Window) {
 	window.FillRect(e.x-e.size/2, e.y-e.size/2, e.size, e.size, e.color)
 }
 
