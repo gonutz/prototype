@@ -18,17 +18,13 @@ import (
 	"time"
 )
 
-// TODO activate gl.Enable(gl.CULL_FACE)
-
 type window struct {
-	running          bool
-	pressed          []string
-	window           *glfw.Window
-	width, height    float64
-	textures         map[string]texture
-	fontTexture      texture
-	fontTextureError error
-	clicks           []MouseClick
+	running       bool
+	pressed       []string // TODO reset after each frame
+	window        *glfw.Window
+	width, height float64
+	textures      map[string]texture
+	clicks        []MouseClick
 }
 
 func RunWindow(title string, width, height int, update UpdateFunction) error {
@@ -63,7 +59,6 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	win.SetKeyCallback(w.keyPress)
 	win.SetMouseButtonCallback(w.mouseButtonEvent)
-	w.loadFont()
 
 	lastUpdateTime := time.Now().Add(-time.Hour)
 	const updateInterval = 1.0 / 60.0
@@ -196,22 +191,8 @@ type texture struct {
 	w, h int
 }
 
-func (w *window) getOrLoadTexture(path string) (texture, error) {
-	if tex, ok := w.textures[path]; ok {
-		return tex, nil
-	}
-
-	imgFile, err := os.Open(path)
-	if err != nil {
-		return texture{}, err
-	}
-	defer imgFile.Close()
-
-	return w.loadTexture(imgFile, path)
-}
-
-func (w *window) loadTexture(file io.Reader, id string) (texture, error) {
-	img, _, err := image.Decode(file)
+func (w *window) loadTexture(r io.Reader, name string) (texture, error) {
+	img, _, err := image.Decode(r)
 	if err != nil {
 		return texture{}, err
 	}
@@ -244,15 +225,31 @@ func (w *window) loadTexture(file io.Reader, id string) (texture, error) {
 		0,
 		gl.RGBA,
 		gl.UNSIGNED_BYTE,
-		gl.Ptr(rgba.Pix))
+		gl.Ptr(rgba.Pix),
+	)
+	gl.Disable(gl.TEXTURE_2D)
 
-	w.textures[id] = texture{
+	w.textures[name] = texture{
 		id: tex,
 		w:  rgba.Bounds().Dx(),
 		h:  rgba.Bounds().Dy(),
 	}
 
-	return w.textures[id], nil
+	return w.textures[name], nil
+}
+
+func (w *window) getOrLoadTexture(path string) (texture, error) {
+	if tex, ok := w.textures[path]; ok {
+		return tex, nil
+	}
+
+	imgFile, err := os.Open(path)
+	if err != nil {
+		return texture{}, err
+	}
+	defer imgFile.Close()
+
+	return w.loadTexture(imgFile, path)
 }
 
 func (w *window) cleanUp() {
@@ -413,65 +410,25 @@ func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 
 type point struct{ x, y float32 }
 
-const fontTextureID = "///font_texture"
-
-func (w *window) loadFont() {
-	_, w.fontTextureError = w.loadTexture(bytes.NewReader(bitmapFontWhitePng[:]), fontTextureID)
-	if w.fontTextureError != nil {
-		println(w.fontTextureError.Error())
-	}
+func (w *window) DrawText(text string, x, y int, color Color) {
+	w.DrawScaledText(text, x, y, 1.0, color)
 }
 
 // TODO implement the following functions
 
-func (w *window) DrawText(text string, x, y int, color Color) {
-	if w.fontTextureError != nil {
-		panic(w.fontTextureError)
-	}
-	fontTexture, _ := w.textures[fontTextureID]
-	width, height := int32(fontTexture.w/16), int32(fontTexture.h/16)
+const fontTextureID = "///font_texture"
 
-	var srcX, srcY float32
-	destX, destY := int32(x), int32(y)
-
-	gl.Enable(gl.TEXTURE_2D)
-	gl.BindTexture(gl.TEXTURE_2D, fontTexture.id)
-
-	gl.Begin(gl.QUADS)
-	for _, char := range []byte(text) {
-		if char == '\n' {
-			destX = int32(x)
-			destY += height
-			continue
+func (w *window) DrawScaledText(text string, x, y int, scale float32, color Color) {
+	fontTexture, ok := w.textures[fontTextureID]
+	if !ok {
+		var err error
+		fontTexture, err = w.loadTexture(bytes.NewReader(bitmapFontWhitePng[:]), fontTextureID)
+		if err != nil {
+			panic(err)
 		}
-		srcX = float32(int(char)%16) / 16
-		srcY = float32(int(char)/16) / 16
-
-		println(srcX, srcY)
-
-		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX, srcY)
-		gl.Vertex2i(destX, destY)
-
-		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX+1.0/16, srcY)
-		gl.Vertex2i(destX+width, destY)
-
-		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX+1.0/16, srcY+1.0/16)
-		gl.Vertex2i(destX+width, destY+height)
-
-		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX, srcY+1.0/16)
-		gl.Vertex2i(destX, destY+height)
-
-		destX += width
 	}
-	gl.End()
-	gl.Disable(gl.TEXTURE_2D)
+	println(fontTexture.w, fontTexture.h)
 }
-
-func (w *window) DrawScaledText(text string, x, y int, scale float32, color Color) {}
 
 func (w *window) DrawImageFilePortion(path string, srcX, srcY, srcW, srcH, toX, toY int) error {
 	return errors.New("not yet implemented")
