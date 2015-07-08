@@ -35,7 +35,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	defer glfw.Terminate()
 
 	glfw.WindowHint(glfw.ContextVersionMajor, 1)
-	glfw.WindowHint(glfw.ContextVersionMinor, 1)
+	glfw.WindowHint(glfw.ContextVersionMinor, 0)
 	glfw.WindowHint(glfw.Resizable, glfw.False)
 
 	win, err := glfw.CreateWindow(width, height, title, nil, nil)
@@ -43,6 +43,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return err
 	}
 	win.MakeContextCurrent()
+	// center the window on the screen (omitting the window border)
+	screen := glfw.GetMonitors()[0].GetVideoMode()
+	win.SetPos((screen.Width-width)/2, (screen.Height-height)/2)
 
 	err = gl.Init()
 	if err != nil {
