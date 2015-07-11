@@ -1,7 +1,7 @@
 package draw
 
-import "errors"
+import "os/exec"
 
 func playSoundFile(path string) error {
-	return errors.New("not yet implemented on this OS")
+	return exec.Command("aplay", path).Start()
 }
