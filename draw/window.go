@@ -6,6 +6,7 @@ type UpdateFunction func(window Window)
 
 type Window interface {
 	Close()
+	Size() (width, height int)
 
 	WasKeyPressed(key string) bool
 	IsKeyDown(key string) bool
@@ -29,6 +30,10 @@ type Window interface {
 
 	PlaySoundFile(path string) error
 }
+
+const (
+	Resizable = 1 << iota
+)
 
 type MouseClick struct {
 	X, Y   int

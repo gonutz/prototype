@@ -38,7 +38,7 @@ func main() {
 		gameOverText = ""
 	}
 
-	draw.RunWindow("Space Shooter", 640, 480, func(window draw.Window) {
+	draw.RunWindow("Space Shooter", 640, 480, 0, func(window draw.Window) {
 		if window.WasKeyPressed("escape") {
 			window.Close()
 		}

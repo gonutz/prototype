@@ -35,7 +35,7 @@ type window struct {
 
 var windowRunningMutex sync.Mutex
 
-func RunWindow(title string, width, height int, update UpdateFunction) error {
+func RunWindow(title string, width, height int, flags int, update UpdateFunction) error {
 	windowRunningMutex.Lock()
 
 	if update == nil {
@@ -47,7 +47,11 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	defer sdl.Quit()
 
-	sdlWindow, renderer, err := sdl.CreateWindowAndRenderer(width, height, 0)
+	var sdlFlags uint32
+	if flags&Resizable > 0 {
+		sdlFlags |= sdl.WINDOW_RESIZABLE
+	}
+	sdlWindow, renderer, err := sdl.CreateWindowAndRenderer(width, height, sdlFlags)
 	if err != nil {
 		return err
 	}
@@ -154,6 +158,10 @@ func (w *window) close() {
 	if w.fontTexture != nil {
 		w.fontTexture.Destroy()
 	}
+}
+
+func (w *window) Size() (int, int) {
+	return w.window.GetSize()
 }
 
 func (w *window) WasKeyPressed(key string) bool {

@@ -48,7 +48,7 @@ func main() {
 
 	resetGame()
 
-	draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, func(window draw.Window) {
+	draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, 0, func(window draw.Window) {
 
 		if window.WasKeyPressed("escape") || window.WasKeyPressed("Q") {
 			window.Close()

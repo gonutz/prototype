@@ -37,7 +37,7 @@ func main() {
 	panelBounceSound := filepath.Join(samplesPath, "tennis", "bounce.wav")
 	wallBounceSound := filepath.Join(samplesPath, "tennis", "bounce2.wav")
 
-	draw.RunWindow("Tennis - press N to restart", 640, 480, func(window draw.Window) {
+	draw.RunWindow("Tennis - press N to restart", 640, 480, 0, func(window draw.Window) {
 
 		if window.WasKeyPressed("escape") {
 			window.Close()

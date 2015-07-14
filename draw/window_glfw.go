@@ -20,14 +20,15 @@ import (
 
 type window struct {
 	running       bool
-	pressed       []string // TODO reset after each frame
+	pressed       []string
+	typed         []rune
 	window        *glfw.Window
 	width, height float64
 	textures      map[string]texture
 	clicks        []MouseClick
 }
 
-func RunWindow(title string, width, height int, update UpdateFunction) error {
+func RunWindow(title string, width, height int, flags int, update UpdateFunction) error {
 	err := glfw.Init()
 	if err != nil {
 		return err
@@ -36,7 +37,11 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	glfw.WindowHint(glfw.ContextVersionMajor, 1)
 	glfw.WindowHint(glfw.ContextVersionMinor, 0)
-	glfw.WindowHint(glfw.Resizable, glfw.False)
+	if flags&Resizable > 0 {
+		glfw.WindowHint(glfw.Resizable, glfw.True)
+	} else {
+		glfw.WindowHint(glfw.Resizable, glfw.False)
+	}
 
 	win, err := glfw.CreateWindow(width, height, title, nil, nil)
 	if err != nil {
@@ -51,7 +56,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	if err != nil {
 		return err
 	}
+	gl.MatrixMode(gl.PROJECTION)
 	gl.Ortho(0, float64(width), float64(height), 0, -1, 1)
+	gl.MatrixMode(gl.MODELVIEW)
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
@@ -63,7 +70,16 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		textures: make(map[string]texture),
 	}
 	win.SetKeyCallback(w.keyPress)
+	win.SetCharCallback(w.charTyped)
 	win.SetMouseButtonCallback(w.mouseButtonEvent)
+	win.SetSizeCallback(func(_ *glfw.Window, width, height int) {
+		w.width, w.height = float64(width), float64(height)
+		gl.MatrixMode(gl.PROJECTION)
+		gl.LoadIdentity()
+		gl.Ortho(0, w.width, w.height, 0, -1, 1)
+		gl.Viewport(0, 0, int32(width), int32(height))
+		gl.MatrixMode(gl.MODELVIEW)
+	})
 
 	lastUpdateTime := time.Now().Add(-time.Hour)
 	const updateInterval = 1.0 / 60.0
@@ -77,6 +93,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			update(w)
 
 			w.pressed = nil
+			w.typed = nil
 			w.clicks = nil
 
 			lastUpdateTime = now
@@ -95,6 +112,10 @@ func (w *window) Close() {
 	w.running = false
 }
 
+func (c *window) Size() (int, int) {
+	return int(c.width + 0.5), int(c.height + 0.5)
+}
+
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
 	if action == glfw.Press || action == glfw.Repeat {
 		w.pressed = append(w.pressed, keyToString[key])
@@ -109,6 +130,19 @@ func (w *window) WasKeyPressed(key string) bool {
 		}
 	}
 	return false
+}
+
+func (w *window) WasCharTyped(char rune) bool {
+	for _, typed := range w.typed {
+		if char == typed {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *window) charTyped(_ *glfw.Window, char rune) {
+	w.typed = append(w.typed, char)
 }
 
 func (w *window) IsKeyDown(key string) bool {
