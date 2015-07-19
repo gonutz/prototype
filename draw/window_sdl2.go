@@ -408,8 +408,8 @@ func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
 	_, _, width, height, _ := win.fontTexture.Query()
 	width /= 16
 	height /= 16
-	w = int(float32(width) * scale)
-	h = int(float32(height) * scale)
+	w = int(float32(width)*scale + 0.5)
+	h = int(float32(height)*scale + 0.5)
 	lines := strings.Split(text, "\n")
 	maxLineW := 0
 	for _, line := range lines {

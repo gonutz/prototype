@@ -19,13 +19,14 @@ import (
 )
 
 type window struct {
-	running       bool
-	pressed       []string
-	typed         []rune
-	window        *glfw.Window
-	width, height float64
-	textures      map[string]texture
-	clicks        []MouseClick
+	running        bool
+	pressed        []string
+	typed          []rune
+	window         *glfw.Window
+	width, height  float64
+	textures       map[string]texture
+	clicks         []MouseClick
+	mouseX, mouseY int
 }
 
 func RunWindow(title string, width, height int, flags int, update UpdateFunction) error {
@@ -72,6 +73,7 @@ func RunWindow(title string, width, height int, flags int, update UpdateFunction
 	win.SetKeyCallback(w.keyPress)
 	win.SetCharCallback(w.charTyped)
 	win.SetMouseButtonCallback(w.mouseButtonEvent)
+	win.SetCursorPosCallback(w.mousePositionChanged)
 	win.SetSizeCallback(func(_ *glfw.Window, width, height int) {
 		w.width, w.height = float64(width), float64(height)
 		gl.MatrixMode(gl.PROJECTION)
@@ -310,6 +312,13 @@ func (win *window) mouseButtonEvent(w *glfw.Window, button glfw.MouseButton, act
 	}
 }
 
+func (w *window) mousePositionChanged(_ *glfw.Window, x, y float64) {
+	w.mouseX, w.mouseY = int(x+0.5), int(y+0.5)
+}
+
+func (w *window) MouseX() int { return w.mouseX }
+func (w *window) MouseY() int { return w.mouseY }
+
 func toMouseButton(b glfw.MouseButton) MouseButton {
 	if b == glfw.MouseButtonRight {
 		return RightButton
@@ -461,8 +470,8 @@ func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
 	if !ok {
 		return 0, 0
 	}
-	w = int(float32(fontTexture.w/16) * scale)
-	h = int(float32(fontTexture.h/16) * scale)
+	w = int(float32(fontTexture.w/16)*scale + 0.5)
+	h = int(float32(fontTexture.h/16)*scale + 0.5)
 	lines := strings.Split(text, "\n")
 	maxLineW := 0
 	for _, line := range lines {

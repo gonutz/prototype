@@ -10,9 +10,12 @@ type Window interface {
 
 	WasKeyPressed(key string) bool
 	IsKeyDown(key string) bool
+	WasCharTyped(char rune) bool
 
 	IsMouseDown(button MouseButton) bool
 	Clicks() []MouseClick
+	MouseX() int
+	MouseY() int
 
 	DrawPoint(x, y int, color Color)
 	DrawLine(fromX, fromY, toX, toY int, color Color)
