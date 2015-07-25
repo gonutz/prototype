@@ -553,7 +553,7 @@ func init() {
 func initKeyMap() {
 	keyToString = make(map[glfw.Key]string)
 	keyToString[glfw.KeyUnknown] = "UNKNOWN"
-	keyToString[glfw.KeyEnter] = "RETURN"
+	keyToString[glfw.KeyEnter] = "ENTER"
 	keyToString[glfw.KeyEscape] = "ESCAPE"
 	keyToString[glfw.KeyBackspace] = "BACKSPACE"
 	keyToString[glfw.KeyTab] = "TAB"

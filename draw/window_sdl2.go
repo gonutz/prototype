@@ -468,7 +468,7 @@ func (w *window) loadSoundIfNecessary(path string) {
 func init() {
 	keyToString = make(map[sdl.Keycode]string)
 	keyToString[sdl.K_UNKNOWN] = "UNKNOWN"
-	keyToString[sdl.K_RETURN] = "RETURN"
+	keyToString[sdl.K_RETURN] = "ENTER"
 	keyToString[sdl.K_ESCAPE] = "ESCAPE"
 	keyToString[sdl.K_BACKSPACE] = "BACKSPACE"
 	keyToString[sdl.K_TAB] = "TAB"
