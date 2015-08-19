@@ -34,6 +34,7 @@ type window struct {
 
 var windowRunningMutex sync.Mutex
 
+// RunWindow creates a new window and calls update 60 times per second.
 func RunWindow(title string, width, height int, flags int, update UpdateFunction) error {
 	windowRunningMutex.Lock()
 
