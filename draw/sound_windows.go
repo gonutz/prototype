@@ -11,9 +11,10 @@ var playSoundW uintptr
 var loaded bool
 
 const (
-	SND_ASYNC     = 1
-	SND_NODEFAULT = 2
+	SND_ASYNC     = 0x1
+	SND_NODEFAULT = 0x2
 	SND_FILENAME  = 0x20000
+	SND_NOSTOP    = 0x10
 )
 
 func playSoundFile(path string) error {

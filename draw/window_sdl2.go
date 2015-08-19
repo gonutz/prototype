@@ -1,7 +1,5 @@
 // +build sdl2
 
-//!glfw
-
 package draw
 
 import (
@@ -19,7 +17,6 @@ import (
 type window struct {
 	Events     []sdl.Event
 	MouseMoved bool
-	Mouse      struct{ X, Y int }
 
 	update      UpdateFunction
 	window      *sdl.Window
@@ -29,8 +26,10 @@ type window struct {
 	soundChunks map[string]*mix.Chunk
 	fontTexture *sdl.Texture
 	keyDown     map[string]bool
+	typed       []rune
 	mouseDown   map[MouseButton]bool
 	clicks      []MouseClick
+	mouse       struct{ x, y int }
 }
 
 var windowRunningMutex sync.Mutex
@@ -102,9 +101,21 @@ func (w *window) runMainLoop() {
 			switch event := e.(type) {
 			case *sdl.QuitEvent:
 				w.running = false
+			case *sdl.TextInputEvent:
+				textLength := 0
+				for i, b := range event.Text {
+					if b == 0 {
+						textLength = i
+						break
+					}
+				}
+				text := string(event.Text[:textLength])
+				for _, r := range text {
+					w.typed = append(w.typed, r)
+				}
 			case *sdl.MouseMotionEvent:
-				w.Mouse.X = int(event.X)
-				w.Mouse.Y = int(event.Y)
+				w.mouse.x = int(event.X)
+				w.mouse.y = int(event.Y)
 				w.MouseMoved = true
 			case *sdl.MouseButtonEvent:
 				if event.State == sdl.PRESSED {
@@ -124,15 +135,18 @@ func (w *window) runMainLoop() {
 
 		now := time.Now()
 		if now.Sub(lastUpdateTime).Seconds() > updateInterval {
+			// clear backgroud to black
 			w.renderer.SetDrawColor(0, 0, 0, 0)
 			w.renderer.Clear()
+			// client updates window
 			w.update(w)
-
+			// reset all events
 			w.Events = nil
 			w.MouseMoved = false
 			w.clicks = nil
-
+			w.typed = nil
 			lastUpdateTime = now
+			// show the window
 			w.renderer.Present()
 		} else {
 			sdl.Delay(1)
@@ -143,6 +157,13 @@ func (w *window) runMainLoop() {
 func makeClick(event *sdl.MouseButtonEvent) MouseClick {
 	return MouseClick{int(event.X), int(event.Y), MouseButton(event.Button)}
 }
+
+func (w *window) setKeyDown(key sdl.Keycode, down bool) {
+	name := strings.ToLower(keyToString[key])
+	w.keyDown[name] = down
+}
+
+var keyToString map[sdl.Keycode]string
 
 func (w *window) close() {
 	for _, sound := range w.soundChunks {
@@ -174,21 +195,23 @@ func (w *window) WasKeyPressed(key string) bool {
 	return false
 }
 
-func (w *window) setKeyDown(key sdl.Keycode, down bool) {
-	name := strings.ToLower(keyToString[key])
-	w.keyDown[name] = down
+func isKey(name string, key sdl.Keycode) bool {
+	keyString, ok := keyToString[key]
+	return ok && strings.ToLower(keyString) == strings.ToLower(name)
 }
 
 func (w *window) IsKeyDown(key string) bool {
 	return w.keyDown[strings.ToLower(key)]
 }
 
-func isKey(name string, key sdl.Keycode) bool {
-	keyString, ok := keyToString[key]
-	return ok && strings.ToLower(keyString) == strings.ToLower(name)
+func (w *window) WasCharTyped(char rune) bool {
+	for _, r := range w.typed {
+		if char == r {
+			return true
+		}
+	}
+	return false
 }
-
-var keyToString map[sdl.Keycode]string
 
 func (w *window) IsMouseDown(button MouseButton) bool {
 	return w.mouseDown[button]
@@ -196,6 +219,14 @@ func (w *window) IsMouseDown(button MouseButton) bool {
 
 func (w *window) Clicks() []MouseClick {
 	return w.clicks
+}
+
+func (w *window) MouseX() int {
+	return w.mouse.x
+}
+
+func (w *window) MouseY() int {
+	return w.mouse.y
 }
 
 func (w *window) Close() {

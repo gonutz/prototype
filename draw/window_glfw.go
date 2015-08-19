@@ -540,7 +540,6 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	gl.Disable(gl.TEXTURE_2D)
 }
 
-// TODO fix WAV sounds for the GLWF backend
 func (w *window) PlaySoundFile(path string) error {
 	return playSoundFile(path)
 }
