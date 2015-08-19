@@ -53,7 +53,7 @@ func main() {
 		if window.WasKeyPressed("escape") || window.WasKeyPressed("Q") {
 			window.Close()
 		}
-		if window.WasKeyPressed("return") {
+		if window.WasKeyPressed("enter") {
 			resetGame()
 			return
 		}
