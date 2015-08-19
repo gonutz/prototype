@@ -221,12 +221,8 @@ func (w *window) Clicks() []MouseClick {
 	return w.clicks
 }
 
-func (w *window) MouseX() int {
-	return w.mouse.x
-}
-
-func (w *window) MouseY() int {
-	return w.mouse.y
+func (w *window) MousePositoin() (int, int) {
+	return w.mouse.x, w.mouse.Y
 }
 
 func (w *window) Close() {

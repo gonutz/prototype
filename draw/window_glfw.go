@@ -316,8 +316,7 @@ func (w *window) mousePositionChanged(_ *glfw.Window, x, y float64) {
 	w.mouseX, w.mouseY = int(x+0.5), int(y+0.5)
 }
 
-func (w *window) MouseX() int { return w.mouseX }
-func (w *window) MouseY() int { return w.mouseY }
+func (w *window) MousePosition() (int, int) { return w.mouseX, w.mouseY }
 
 func toMouseButton(b glfw.MouseButton) MouseButton {
 	if b == glfw.MouseButtonRight {
