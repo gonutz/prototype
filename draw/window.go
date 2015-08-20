@@ -94,10 +94,13 @@ type Window interface {
 	// FillRect draws a filled rect.
 	FillRect(x, y, width, height int, color Color)
 
-	// DrawEllipse draws a one pixel wide ellipse.
+	// DrawEllipse draws a one pixel wide ellipse. The top-left corner of the
+	// surrounding rectangle is given by x and y, the horizontal and vertical
+	// diameters are given by width and height.
 	DrawEllipse(x, y, width, height int, color Color)
 
-	// FillEllipse draws a filled ellipse.
+	// FillEllipse behaves like DrawEllipse but fills the ellipse with the color
+	// instaed of only drawing the outline.
 	FillEllipse(x, y, width, height int, color Color)
 
 	// DrawImageFile draws the untransformed image at the give position. If the
