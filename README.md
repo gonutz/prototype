@@ -10,9 +10,9 @@ First you need to install the Go programming language from [this link](https://g
 
 You of course also need git (for Windows, get it from [here](https://git-scm.com/downloads)).
 
-Because this library uses C libraries you also need a working GCC compiler. If you are on Linux you probably already have it installed. For Windows you can use [MinGW](http://sourceforge.net/projects/mingw/files/latest/download?source=files). After downloading, run the installer and follow the instructions until you get to the "MinGW Installation Manager". Here select (activate checkbox): mingw-developer-toolkit, mingw32-base,  mingw-gcc-g++ and msys-base. In the "Installation" menu click "Apply Changes" and wait for it to finish. You have to add the paths to the tools (C:\MinGW\bin; and C:\MinGW\msys\1.0\bin; per default) to your PATH environment variable. See the instructions from the Go installation page for how to edit your environment variables.
+Because this library uses C libraries you also need a working C compiler. If you are on Linux you probably already have GCC installed. For Windows you can use [MinGW](http://sourceforge.net/projects/mingw/files/latest/download?source=files). After downloading, run the installer and follow the instructions until you get to the "MinGW Installation Manager". Put a check mark on the following components: *mingw-developer-toolkit*, *mingw32-base*, *mingw-gcc-g++* and *msys-base*. In the "Installation" menu click "Apply Changes" and wait for it to finish. Then add the tools directories (they default to *C:\MinGW\bin* and *C:\MinGW\msys\1.0\bin*) to your PATH environment. See the instructions from the Go installation page for how to edit your environment variables.
 
-After having set up all the above you are ready to install this library and finally start prototyping. From the command line run
+After installing all the tools you are ready to install this library and finally start prototyping. From the command line run:
 
 	go get github.com/gonutz/prototype/draw
 
@@ -52,4 +52,4 @@ func update(window draw.Window) {
 }
 ```
 	
-This displays a resizable window with a round button in the middle to close it. It shows some basic drawing and event handling code.
+This displays a resizable window with a round button in the middle to close it. It demonstrates some basic drawing and event handling code.
