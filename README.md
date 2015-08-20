@@ -18,6 +18,11 @@ After installing all the tools you are ready to install this library and finally
 
 This will install and build the library.
 
+Documentation
+-------------
+
+For a description of all library functions, see [the godoc page](http://godoc.org/github.com/gonutz/prototype/draw) for this project. Note that most of the functionality is in the Window interface and hence the descriptions are listed as code comments in the source for that type.
+
 Example
 -------
 
