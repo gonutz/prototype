@@ -157,13 +157,18 @@ func (w *window) DrawPoint(x, y int, color Color) {
 	gl.Begin(gl.POINTS)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x), int32(y))
+	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
 
 	gl.End()
 }
 
 func (w *window) FillRect(x, y, width, height int, color Color) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+
 	gl.Begin(gl.QUADS)
+
 	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2i(int32(x), int32(y))
 
@@ -175,26 +180,36 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2i(int32(x), int32(y+height))
+
 	gl.End()
 }
 
 func (w *window) DrawRect(x, y, width, height int, color Color) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+
+	if width == 1 && height == 1 {
+		w.DrawPoint(x, y, color)
+		return
+	}
+
 	gl.Begin(gl.LINE_STRIP)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x), int32(y))
+	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x+width), int32(y))
+	gl.Vertex2f(float32(x+width)-0.5, float32(y)+0.5)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x+width), int32(y+height))
+	gl.Vertex2f(float32(x+width)-0.5, float32(y+height)-0.5)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x), int32(y+height))
+	gl.Vertex2f(float32(x)+0.5, float32(y+height)-0.5)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x), int32(y-1))
+	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
 
 	gl.End()
 }
@@ -207,10 +222,10 @@ func (w *window) DrawLine(x, y, x2, y2 int, color Color) {
 	gl.Begin(gl.LINES)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x), int32(y))
+	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
 
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2i(int32(x2+sign(x2-x)), int32(y2+sign(y2-y)))
+	gl.Vertex2f(float32(x2+sign(x2-x))+0.5, float32(y2+sign(y2-y))+0.5)
 
 	gl.End()
 }
@@ -352,6 +367,29 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 }
 
 func (w *window) ellipse(filled bool, x, y, width, height int, color Color) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+
+	if width == 1 && height == 1 {
+		w.DrawPoint(x, y, color)
+		return
+	}
+
+	if width == 1 {
+		w.DrawLine(x, y, x, y+height-1, color)
+		return
+	}
+	if height == 1 {
+		w.DrawLine(x, y, x+width-1, y, color)
+		return
+	}
+
+	if !filled {
+		width--
+		height--
+	}
+
 	a, b := float32(width)/2, float32(height)/2
 	fx, fy := float32(x)+a, float32(y)+b
 
@@ -360,6 +398,8 @@ func (w *window) ellipse(filled bool, x, y, width, height int, color Color) {
 		gl.Color4f(color.R, color.G, color.B, color.A)
 		gl.Vertex2f(fx, fy)
 	} else {
+		fx += 0.5
+		fy += 0.5
 		gl.Begin(gl.LINE_STRIP)
 	}
 

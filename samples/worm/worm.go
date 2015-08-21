@@ -131,17 +131,17 @@ func (s *snake) drawClaws(window draw.Window, frame int) {
 		offset = 2
 	}
 	if s.dy < 0 {
-		window.FillEllipse(x+offset, y-1, 2, 4, draw.Red)
-		window.FillEllipse(x+tileSize-2-offset, y-1, 2, 4, draw.Red)
+		window.FillEllipse(x+offset, y, 2, 4, draw.Red)
+		window.FillEllipse(x+tileSize-2-offset, y, 2, 4, draw.Red)
 	} else if s.dy > 0 {
 		window.FillEllipse(x+offset, y+tileSize-3, 2, 4, draw.Red)
 		window.FillEllipse(x+tileSize-2-offset, y+tileSize-3, 2, 4, draw.Red)
 	} else if s.dx > 0 {
-		window.FillEllipse(x+tileSize-1, y+offset, 3, 3, draw.Red)
-		window.FillEllipse(x+tileSize-1, y+tileSize-2-offset, 3, 3, draw.Red)
+		window.FillEllipse(x+tileSize-3, y+offset, 4, 2, draw.Red)
+		window.FillEllipse(x+tileSize-3, y+tileSize-2-offset, 4, 2, draw.Red)
 	} else {
-		window.FillEllipse(x, y+offset, 3, 3, draw.Red)
-		window.FillEllipse(x, y+tileSize-2-offset, 3, 3, draw.Red)
+		window.FillEllipse(x, y+offset, 4, 2, draw.Red)
+		window.FillEllipse(x, y+tileSize-2-offset, 4, 2, draw.Red)
 	}
 }
 
