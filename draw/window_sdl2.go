@@ -86,7 +86,7 @@ func RunWindow(title string, width, height int, flags int, update UpdateFunction
 func (w *window) createBitmapFont() {
 	ptr := unsafe.Pointer(&bitmapFontWhitePng[0])
 	rwops := sdl.RWFromMem(ptr, len(bitmapFontWhitePng))
-	texture, err := img.LoadTexture_RW(w.renderer, rwops, 0)
+	texture, err := img.LoadTexture_RW(w.renderer, rwops, false)
 	if err != nil {
 		panic(err)
 	}
@@ -222,8 +222,8 @@ func (w *window) Clicks() []MouseClick {
 	return w.clicks
 }
 
-func (w *window) MousePositoin() (int, int) {
-	return w.mouse.x, w.mouse.Y
+func (w *window) MousePosition() (int, int) {
+	return w.mouse.x, w.mouse.y
 }
 
 func (w *window) Close() {
@@ -482,7 +482,7 @@ func (w *window) PlaySoundFile(path string) error {
 	if sound == nil {
 		return errors.New(`File "` + path + `" could not be loaded.`)
 	}
-	sound.PlayChannel(-1, 0)
+	sound.Play(-1, 0)
 	return nil
 }
 
