@@ -45,7 +45,7 @@ func update(window draw.Window) {
 	window.DrawEllipse(centerX-20, centerY-20, 40, 40, draw.White)
 	window.DrawScaledText("Close!", centerX-40, centerY+25, 1.6, draw.Green)
 
-	// check all mouse clicks that happened during this frams
+	// check all mouse clicks that happened during this frame
 	for _, click := range window.Clicks() {
 		dx, dy := click.X-centerX, click.Y-centerY
 		squareDist := dx*dx + dy*dy
