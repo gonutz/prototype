@@ -37,69 +37,74 @@ func main() {
 	panelBounceSound := filepath.Join(samplesPath, "tennis", "bounce.wav")
 	wallBounceSound := filepath.Join(samplesPath, "tennis", "bounce2.wav")
 
-	draw.RunWindow("Tennis - press N to restart", 640, 480, 0, func(window draw.Window) {
+	mainErr := draw.RunWindow("Tennis - press N to restart", 640, 480, 0,
+		func(window draw.Window) {
 
-		if window.WasKeyPressed("escape") {
-			window.Close()
-		}
-
-		if window.WasKeyPressed("n") {
-			resetAfterScore(1.0)
-			leftScore = 0
-			rightScore = 0
-			return
-		}
-
-		const dy = 7
-		if window.IsKeyDown("down") {
-			rightPanel.y += dy
-		}
-		if window.IsKeyDown("up") {
-			rightPanel.y -= dy
-		}
-		if window.IsKeyDown("lctrl") {
-			leftPanel.y += dy
-		}
-		if window.IsKeyDown("lshift") {
-			leftPanel.y -= dy
-		}
-		keepInYBounds(leftPanel, 480)
-		keepInYBounds(rightPanel, 480)
-
-		timeDivision := 4
-		if *speed > 1.0 {
-			timeDivision = int(float64(timeDivision) * *speed)
-		}
-		for i := 0; i < timeDivision; i++ {
-			ball.move(1.0 / float32(timeDivision))
-			if ball.collideLeft(leftPanel) || ball.collideRight(rightPanel) {
-				window.PlaySoundFile(panelBounceSound)
+			if window.WasKeyPressed("escape") {
+				window.Close()
 			}
-			if ball.collideWall(480) {
-				window.PlaySoundFile(wallBounceSound)
+
+			if window.WasKeyPressed("n") {
+				resetAfterScore(1.0)
+				leftScore = 0
+				rightScore = 0
+				return
 			}
-		}
 
-		if ball.isInLeftGoal() {
-			rightScore++
-			window.PlaySoundFile(scoreSound)
-			resetAfterScore(1.0)
-		}
-		if ball.isInRightGoal(640) {
-			leftScore++
-			window.PlaySoundFile(scoreSound)
-			resetAfterScore(-1.0)
-		}
+			const dy = 7
+			if window.IsKeyDown("down") {
+				rightPanel.y += dy
+			}
+			if window.IsKeyDown("up") {
+				rightPanel.y -= dy
+			}
+			if window.IsKeyDown("lctrl") {
+				leftPanel.y += dy
+			}
+			if window.IsKeyDown("lshift") {
+				leftPanel.y -= dy
+			}
+			keepInYBounds(leftPanel, 480)
+			keepInYBounds(rightPanel, 480)
 
-		window.FillRect(0, 0, 640, 480, draw.DarkGreen)
-		window.DrawRect(50, 50, 540, 380, draw.LightGreen)
-		window.DrawLine(320, 50, 320, 429, draw.LightGreen)
-		leftPanel.draw(window)
-		rightPanel.draw(window)
-		ball.draw(window)
-		drawScore(leftScore, rightScore, window)
+			timeDivision := 4
+			if *speed > 1.0 {
+				timeDivision = int(float64(timeDivision) * *speed)
+			}
+			for i := 0; i < timeDivision; i++ {
+				ball.move(1.0 / float32(timeDivision))
+				if ball.collideLeft(leftPanel) || ball.collideRight(rightPanel) {
+					window.PlaySoundFile(panelBounceSound)
+				}
+				if ball.collideWall(480) {
+					window.PlaySoundFile(wallBounceSound)
+				}
+			}
 
-	})
+			if ball.isInLeftGoal() {
+				rightScore++
+				window.PlaySoundFile(scoreSound)
+				resetAfterScore(1.0)
+			}
+			if ball.isInRightGoal(640) {
+				leftScore++
+				window.PlaySoundFile(scoreSound)
+				resetAfterScore(-1.0)
+			}
+
+			window.FillRect(0, 0, 640, 480, draw.DarkGreen)
+			window.DrawRect(50, 50, 540, 380, draw.LightGreen)
+			window.DrawLine(320, 50, 320, 429, draw.LightGreen)
+			leftPanel.draw(window)
+			rightPanel.draw(window)
+			ball.draw(window)
+			drawScore(leftScore, rightScore, window)
+
+		})
+
+	if mainErr != nil {
+		panic(mainErr)
+	}
 }
 
 type rect struct {

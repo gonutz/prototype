@@ -31,6 +31,11 @@ type window struct {
 
 // RunWindow creates a new window and calls update 60 times per second.
 func RunWindow(title string, width, height int, flags int, update UpdateFunction) error {
+	if err := initSound(); err != nil {
+		return err
+	}
+	defer closeSound()
+
 	err := glfw.Init()
 	if err != nil {
 		return err

@@ -1,45 +1,37 @@
 package draw
 
 import (
-	"errors"
-	"syscall"
-	"unsafe"
+	"github.com/gonutz/mixer"
+	"github.com/gonutz/mixer/wav"
 )
 
-var winmm syscall.Handle
-var playSoundW uintptr
-var loaded bool
+var wavTable = make(map[string]mixer.SoundSource)
 
-const (
-	SND_ASYNC     = 0x1
-	SND_NODEFAULT = 0x2
-	SND_FILENAME  = 0x20000
-	SND_NOSTOP    = 0x10
-)
+func initSound() error {
+	return mixer.Init()
+}
+
+func closeSound() {
+	mixer.Close()
+}
 
 func playSoundFile(path string) error {
-	if !loaded {
-		var err error
-		winmm, err = syscall.LoadLibrary("Winmm.dll")
-		if err != nil {
-			return err
-		}
-		playSoundW, err = syscall.GetProcAddress(winmm, "PlaySoundW")
-		if err != nil {
-			return err
-		}
-		loaded = true
+	if sound, ok := wavTable[path]; ok {
+		sound.PlayOnce()
+		return nil
 	}
-	// BOOL PlaySound(LPCTSTR pszSound, HMODULE hmod, DWORD fdwSound);
-	argCount := uintptr(3)
-	filename := uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(path)))
-	flags := uintptr(SND_ASYNC | SND_FILENAME | SND_NODEFAULT)
-	ret, _, callErr := syscall.Syscall(uintptr(playSoundW), argCount, filename, 0, flags)
-	if callErr != 0 {
-		return callErr
+
+	wave, err := wav.LoadFromFile(path)
+	if err != nil {
+		return err
 	}
-	if int(ret) == 0 {
-		return errors.New("PlaySoundW returned FALSE")
+
+	sound, err := mixer.NewSoundSource(wave)
+	if err != nil {
+		return err
 	}
+	wavTable[path] = sound
+	sound.PlayOnce()
+
 	return nil
 }

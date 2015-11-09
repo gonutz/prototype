@@ -48,62 +48,67 @@ func main() {
 
 	resetGame()
 
-	draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, 0, func(window draw.Window) {
+	mainErr := draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, 0,
+		func(window draw.Window) {
 
-		if window.WasKeyPressed("escape") || window.WasKeyPressed("Q") {
-			window.Close()
-		}
-		if window.WasKeyPressed("enter") {
-			resetGame()
-			return
-		}
-
-		if !gameOver {
-			if window.WasKeyPressed("left") {
-				theSnake.setVelocity(-1, 0)
+			if window.WasKeyPressed("escape") || window.WasKeyPressed("Q") {
+				window.Close()
 			}
-			if window.WasKeyPressed("right") {
-				theSnake.setVelocity(1, 0)
-			}
-			if window.WasKeyPressed("down") {
-				theSnake.setVelocity(0, 1)
-			}
-			if window.WasKeyPressed("up") {
-				theSnake.setVelocity(0, -1)
+			if window.WasKeyPressed("enter") {
+				resetGame()
+				return
 			}
 
-			nextMove--
-			if nextMove <= 0 {
-				theSnake.move(cookie)
-				nextMove = moveDelay
-			}
-
-			if theSnake.head() == cookie {
-				resetCookie()
-				score++
-				if score%10 == 0 {
-					moveDelay--
+			if !gameOver {
+				if window.WasKeyPressed("left") {
+					theSnake.setVelocity(-1, 0)
 				}
-				if moveDelay < minMoveDelay {
-					moveDelay = minMoveDelay
+				if window.WasKeyPressed("right") {
+					theSnake.setVelocity(1, 0)
 				}
+				if window.WasKeyPressed("down") {
+					theSnake.setVelocity(0, 1)
+				}
+				if window.WasKeyPressed("up") {
+					theSnake.setVelocity(0, -1)
+				}
+
+				nextMove--
+				if nextMove <= 0 {
+					theSnake.move(cookie)
+					nextMove = moveDelay
+				}
+
+				if theSnake.head() == cookie {
+					resetCookie()
+					score++
+					if score%10 == 0 {
+						moveDelay--
+					}
+					if moveDelay < minMoveDelay {
+						moveDelay = minMoveDelay
+					}
+				}
+
+				if theSnake.bitItself() {
+					gameOver = true
+				}
+				frame++
 			}
 
-			if theSnake.bitItself() {
-				gameOver = true
+			window.FillRect(0, 0, windowSize, windowSize, draw.LightGreen)
+			theSnake.draw(window, frame)
+			drawCookie(cookie, window)
+			drawScore(window, score)
+			if gameOver {
+				window.DrawScaledText(" Game Over!\npress  ENTER\n to restart", 25, 80, 2.0, draw.White)
 			}
-			frame++
-		}
 
-		window.FillRect(0, 0, windowSize, windowSize, draw.LightGreen)
-		theSnake.draw(window, frame)
-		drawCookie(cookie, window)
-		drawScore(window, score)
-		if gameOver {
-			window.DrawScaledText(" Game Over!\npress  ENTER\n to restart", 25, 80, 2.0, draw.White)
-		}
+		})
 
-	})
+	if mainErr != nil {
+		panic(mainErr)
+	}
 }
 
 type point struct{ x, y int }

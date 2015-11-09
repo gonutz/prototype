@@ -38,7 +38,7 @@ func main() {
 		gameOverText = ""
 	}
 
-	draw.RunWindow("Space Shooter", 640, 480, 0, func(window draw.Window) {
+	mainErr := draw.RunWindow("Space Shooter", 640, 480, 0, func(window draw.Window) {
 		if window.WasKeyPressed("escape") {
 			window.Close()
 		}
@@ -102,6 +102,10 @@ func main() {
 		}
 		window.DrawScaledText(gameOverText, 100, 180, 2.0, draw.White)
 	})
+
+	if mainErr != nil {
+		panic(mainErr)
+	}
 }
 
 func resourcePath(filename string) string {
