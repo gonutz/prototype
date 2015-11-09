@@ -8,6 +8,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl_image"
 	"github.com/veandco/go-sdl2/sdl_mixer"
 	"math"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -494,6 +495,8 @@ func (w *window) loadSoundIfNecessary(path string) {
 }
 
 func init() {
+	runtime.LockOSThread()
+
 	keyToString = make(map[sdl.Keycode]string)
 	keyToString[sdl.K_UNKNOWN] = "UNKNOWN"
 	keyToString[sdl.K_RETURN] = "ENTER"
