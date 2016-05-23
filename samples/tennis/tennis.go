@@ -37,14 +37,14 @@ func main() {
 	panelBounceSound := filepath.Join(samplesPath, "tennis", "bounce.wav")
 	wallBounceSound := filepath.Join(samplesPath, "tennis", "bounce2.wav")
 
-	mainErr := draw.RunWindow("Tennis - press N to restart", 640, 480, 0,
+	mainErr := draw.RunWindow("Tennis - press N to restart", 640, 480,
 		func(window draw.Window) {
 
-			if window.WasKeyPressed("escape") {
+			if window.WasKeyPressed(draw.KeyEscape) {
 				window.Close()
 			}
 
-			if window.WasKeyPressed("n") {
+			if window.WasKeyPressed(draw.KeyN) {
 				resetAfterScore(1.0)
 				leftScore = 0
 				rightScore = 0
@@ -52,16 +52,16 @@ func main() {
 			}
 
 			const dy = 7
-			if window.IsKeyDown("down") {
+			if window.IsKeyDown(draw.KeyDown) {
 				rightPanel.y += dy
 			}
-			if window.IsKeyDown("up") {
+			if window.IsKeyDown(draw.KeyUp) {
 				rightPanel.y -= dy
 			}
-			if window.IsKeyDown("lctrl") {
+			if window.IsKeyDown(draw.KeyLeftControl) {
 				leftPanel.y += dy
 			}
-			if window.IsKeyDown("lshift") {
+			if window.IsKeyDown(draw.KeyLeftShift) {
 				leftPanel.y -= dy
 			}
 			keepInYBounds(leftPanel, 480)

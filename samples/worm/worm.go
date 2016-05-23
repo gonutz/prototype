@@ -48,28 +48,28 @@ func main() {
 
 	resetGame()
 
-	mainErr := draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, 0,
+	mainErr := draw.RunWindow("Eat everything", windowSize, windowSize+tileSize,
 		func(window draw.Window) {
 
-			if window.WasKeyPressed("escape") || window.WasKeyPressed("Q") {
+			if window.WasKeyPressed(draw.KeyEscape) {
 				window.Close()
 			}
-			if window.WasKeyPressed("enter") {
+			if window.WasKeyPressed(draw.KeyEnter) {
 				resetGame()
 				return
 			}
 
 			if !gameOver {
-				if window.WasKeyPressed("left") {
+				if window.WasKeyPressed(draw.KeyLeft) {
 					theSnake.setVelocity(-1, 0)
 				}
-				if window.WasKeyPressed("right") {
+				if window.WasKeyPressed(draw.KeyRight) {
 					theSnake.setVelocity(1, 0)
 				}
-				if window.WasKeyPressed("down") {
+				if window.WasKeyPressed(draw.KeyDown) {
 					theSnake.setVelocity(0, 1)
 				}
-				if window.WasKeyPressed("up") {
+				if window.WasKeyPressed(draw.KeyUp) {
 					theSnake.setVelocity(0, -1)
 				}
 

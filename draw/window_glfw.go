@@ -1,4 +1,4 @@
-// +build glfw !sdl2
+// +build glfw,!sdl2
 
 package draw
 
@@ -18,9 +18,13 @@ import (
 	"time"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 type window struct {
 	running        bool
-	pressed        []string
+	pressed        []Key
 	typed          []rune
 	window         *glfw.Window
 	width, height  float64
@@ -30,7 +34,7 @@ type window struct {
 }
 
 // RunWindow creates a new window and calls update 60 times per second.
-func RunWindow(title string, width, height int, flags int, update UpdateFunction) error {
+func RunWindow(title string, width, height int, update UpdateFunction) error {
 	if err := initSound(); err != nil {
 		return err
 	}
@@ -44,13 +48,9 @@ func RunWindow(title string, width, height int, flags int, update UpdateFunction
 
 	glfw.WindowHint(glfw.ContextVersionMajor, 1)
 	glfw.WindowHint(glfw.ContextVersionMinor, 0)
-	if flags&Resizable > 0 {
-		glfw.WindowHint(glfw.Resizable, glfw.True)
-	} else {
-		glfw.WindowHint(glfw.Resizable, glfw.False)
-	}
+	glfw.WindowHint(glfw.Resizable, glfw.False)
 
-	win, err := glfw.CreateWindow(width, height, title, nil, nil)
+	win, err := glfw.CreateWindow(width, height, title+" (GLFW)", nil, nil)
 	if err != nil {
 		return err
 	}
@@ -100,9 +100,9 @@ func RunWindow(title string, width, height int, flags int, update UpdateFunction
 			gl.Clear(gl.COLOR_BUFFER_BIT)
 			update(w)
 
-			w.pressed = nil
-			w.typed = nil
-			w.clicks = nil
+			w.pressed = w.pressed[0:0]
+			w.typed = w.typed[0:0]
+			w.clicks = w.clicks[0:0]
 
 			lastUpdateTime = now
 			win.SwapBuffers()
@@ -126,12 +126,11 @@ func (c *window) Size() (int, int) {
 
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
 	if action == glfw.Press || action == glfw.Repeat {
-		w.pressed = append(w.pressed, keyToString[key])
+		w.pressed = append(w.pressed, tokey(key))
 	}
 }
 
-func (w *window) WasKeyPressed(key string) bool {
-	key = strings.ToLower(key)
+func (w *window) WasKeyPressed(key Key) bool {
 	for _, pressed := range w.pressed {
 		if pressed == key {
 			return true
@@ -153,9 +152,12 @@ func (w *window) charTyped(_ *glfw.Window, char rune) {
 	w.typed = append(w.typed, char)
 }
 
-func (w *window) IsKeyDown(key string) bool {
-	key = strings.ToLower(key)
-	return w.window.GetKey(stringToKey[key]) == glfw.Press
+func (w *window) IsKeyDown(key Key) bool {
+	k := toGlfwKey(key)
+	if k == glfw.KeyUnknown {
+		return false
+	}
+	return w.window.GetKey(k) == glfw.Press
 }
 
 func (w *window) DrawPoint(x, y int, color Color) {
@@ -245,9 +247,6 @@ func sign(x int) int {
 	return -1
 }
 
-var keyToString map[glfw.Key]string
-var stringToKey map[string]glfw.Key
-
 type texture struct {
 	id   uint32
 	w, h int
@@ -325,6 +324,10 @@ func (w *window) Clicks() []MouseClick {
 	return w.clicks
 }
 
+func (w *window) Characters() string {
+	return string(w.typed)
+}
+
 func (win *window) mouseButtonEvent(w *glfw.Window, button glfw.MouseButton, action glfw.Action, mod glfw.ModifierKey) {
 	if action == glfw.Press {
 		b := toMouseButton(button)
@@ -394,17 +397,22 @@ func (w *window) ellipse(filled bool, x, y, width, height int, color Color) {
 		width--
 		height--
 	}
-
 	a, b := float32(width)/2, float32(height)/2
 	fx, fy := float32(x)+a, float32(y)+b
 
 	if filled {
+		fx -= 0.5
+		fy -= 0.5
+		a -= 0.25
+		b -= 0.25
+
 		gl.Begin(gl.TRIANGLE_FAN)
 		gl.Color4f(color.R, color.G, color.B, color.A)
 		gl.Vertex2f(fx, fy)
 	} else {
-		fx += 0.5
-		fy += 0.5
+		// TODO this is all not quite right yet
+		//fx += 0.5
+		//fy += 0.5
 		gl.Begin(gl.LINE_STRIP)
 	}
 
@@ -452,10 +460,18 @@ func (w *window) DrawImageFile(path string, x, y int) error {
 	return nil
 }
 
+func (win *window) DrawImageFileRotated(path string, x, y, degrees int) error {
+	return win.DrawImageFileTo(path, x, y, -1, -1, degrees)
+}
+
 func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 	tex, err := win.getOrLoadTexture(path)
 	if err != nil {
 		return err
+	}
+
+	if w == -1 && h == -1 {
+		w, h = tex.w, tex.h
 	}
 
 	x1, y1 := float32(x), float32(y)
@@ -589,136 +605,412 @@ func (w *window) PlaySoundFile(path string) error {
 	return playSoundFile(path)
 }
 
-func init() {
-	runtime.LockOSThread()
-	initKeyMap()
+func toGlfwKey(key Key) glfw.Key {
+	switch key {
+	case KeyA:
+		return glfw.KeyA
+	case KeyB:
+		return glfw.KeyB
+	case KeyC:
+		return glfw.KeyC
+	case KeyD:
+		return glfw.KeyD
+	case KeyE:
+		return glfw.KeyE
+	case KeyF:
+		return glfw.KeyF
+	case KeyG:
+		return glfw.KeyG
+	case KeyH:
+		return glfw.KeyH
+	case KeyI:
+		return glfw.KeyI
+	case KeyJ:
+		return glfw.KeyJ
+	case KeyK:
+		return glfw.KeyK
+	case KeyL:
+		return glfw.KeyL
+	case KeyM:
+		return glfw.KeyM
+	case KeyN:
+		return glfw.KeyN
+	case KeyO:
+		return glfw.KeyO
+	case KeyP:
+		return glfw.KeyP
+	case KeyQ:
+		return glfw.KeyQ
+	case KeyR:
+		return glfw.KeyR
+	case KeyS:
+		return glfw.KeyS
+	case KeyT:
+		return glfw.KeyT
+	case KeyU:
+		return glfw.KeyU
+	case KeyV:
+		return glfw.KeyV
+	case KeyW:
+		return glfw.KeyW
+	case KeyX:
+		return glfw.KeyX
+	case KeyY:
+		return glfw.KeyY
+	case KeyZ:
+		return glfw.KeyZ
+	case Key0:
+		return glfw.Key0
+	case Key1:
+		return glfw.Key1
+	case Key2:
+		return glfw.Key2
+	case Key3:
+		return glfw.Key3
+	case Key4:
+		return glfw.Key4
+	case Key5:
+		return glfw.Key5
+	case Key6:
+		return glfw.Key6
+	case Key7:
+		return glfw.Key7
+	case Key8:
+		return glfw.Key8
+	case Key9:
+		return glfw.Key9
+	case KeyNum0:
+		return glfw.KeyKP0
+	case KeyNum1:
+		return glfw.KeyKP1
+	case KeyNum2:
+		return glfw.KeyKP2
+	case KeyNum3:
+		return glfw.KeyKP3
+	case KeyNum4:
+		return glfw.KeyKP4
+	case KeyNum5:
+		return glfw.KeyKP5
+	case KeyNum6:
+		return glfw.KeyKP6
+	case KeyNum7:
+		return glfw.KeyKP7
+	case KeyNum8:
+		return glfw.KeyKP8
+	case KeyNum9:
+		return glfw.KeyKP9
+	case KeyF1:
+		return glfw.KeyF1
+	case KeyF2:
+		return glfw.KeyF2
+	case KeyF3:
+		return glfw.KeyF3
+	case KeyF4:
+		return glfw.KeyF4
+	case KeyF5:
+		return glfw.KeyF5
+	case KeyF6:
+		return glfw.KeyF6
+	case KeyF7:
+		return glfw.KeyF7
+	case KeyF8:
+		return glfw.KeyF8
+	case KeyF9:
+		return glfw.KeyF9
+	case KeyF10:
+		return glfw.KeyF10
+	case KeyF11:
+		return glfw.KeyF11
+	case KeyF12:
+		return glfw.KeyF12
+	case KeyF13:
+		return glfw.KeyF13
+	case KeyF14:
+		return glfw.KeyF14
+	case KeyF15:
+		return glfw.KeyF15
+	case KeyF16:
+		return glfw.KeyF16
+	case KeyF17:
+		return glfw.KeyF17
+	case KeyF18:
+		return glfw.KeyF18
+	case KeyF19:
+		return glfw.KeyF19
+	case KeyF20:
+		return glfw.KeyF20
+	case KeyF21:
+		return glfw.KeyF21
+	case KeyF22:
+		return glfw.KeyF22
+	case KeyF23:
+		return glfw.KeyF23
+	case KeyF24:
+		return glfw.KeyF24
+	case KeyEnter:
+		return glfw.KeyEnter
+	case KeyNumEnter:
+		return glfw.KeyKPEnter
+	case KeyLeftControl:
+		return glfw.KeyLeftControl
+	case KeyRightControl:
+		return glfw.KeyRightControl
+	case KeyLeftShift:
+		return glfw.KeyLeftShift
+	case KeyRightShift:
+		return glfw.KeyRightShift
+	case KeyLeftAlt:
+		return glfw.KeyLeftAlt
+	case KeyRightAlt:
+		return glfw.KeyRightAlt
+	case KeyLeft:
+		return glfw.KeyLeft
+	case KeyRight:
+		return glfw.KeyRight
+	case KeyUp:
+		return glfw.KeyUp
+	case KeyDown:
+		return glfw.KeyDown
+	case KeyEscape:
+		return glfw.KeyEscape
+	case KeySpace:
+		return glfw.KeySpace
+	case KeyBackspace:
+		return glfw.KeyBackspace
+	case KeyTab:
+		return glfw.KeyTab
+	case KeyHome:
+		return glfw.KeyHome
+	case KeyEnd:
+		return glfw.KeyEnd
+	case KeyPageDown:
+		return glfw.KeyPageDown
+	case KeyPageUp:
+		return glfw.KeyPageUp
+	case KeyDelete:
+		return glfw.KeyDelete
+	case KeyInsert:
+		return glfw.KeyInsert
+	case KeyNumAdd:
+		return glfw.KeyKPAdd
+	case KeyNumSubtract:
+		return glfw.KeyKPSubtract
+	case KeyNumMultiply:
+		return glfw.KeyKPMultiply
+	case KeyNumDivide:
+		return glfw.KeyKPDivide
+	case KeyCapslock:
+		return glfw.KeyCapsLock
+	case KeyPrint:
+		return glfw.KeyPrintScreen
+	case KeyPause:
+		return glfw.KeyPause
+	}
+
+	return glfw.KeyUnknown
 }
 
-func initKeyMap() {
-	keyToString = make(map[glfw.Key]string)
-	keyToString[glfw.KeyUnknown] = "UNKNOWN"
-	keyToString[glfw.KeyEnter] = "ENTER"
-	keyToString[glfw.KeyEscape] = "ESCAPE"
-	keyToString[glfw.KeyBackspace] = "BACKSPACE"
-	keyToString[glfw.KeyTab] = "TAB"
-	keyToString[glfw.KeySpace] = "SPACE"
-	keyToString[glfw.KeyComma] = "COMMA"
-	keyToString[glfw.KeyMinus] = "MINUS"
-	keyToString[glfw.KeyPeriod] = "PERIOD"
-	keyToString[glfw.KeySlash] = "SLASH"
-	keyToString[glfw.Key0] = "0"
-	keyToString[glfw.Key1] = "1"
-	keyToString[glfw.Key2] = "2"
-	keyToString[glfw.Key3] = "3"
-	keyToString[glfw.Key4] = "4"
-	keyToString[glfw.Key5] = "5"
-	keyToString[glfw.Key6] = "6"
-	keyToString[glfw.Key7] = "7"
-	keyToString[glfw.Key8] = "8"
-	keyToString[glfw.Key9] = "9"
-	keyToString[glfw.KeySemicolon] = "SEMICOLON"
-	keyToString[glfw.KeyLeftBracket] = "LEFTBRACKET"
-	keyToString[glfw.KeyBackslash] = "BACKSLASH"
-	keyToString[glfw.KeyRightBracket] = "RIGHTBRACKET"
-	keyToString[glfw.KeyA] = "a"
-	keyToString[glfw.KeyB] = "b"
-	keyToString[glfw.KeyC] = "c"
-	keyToString[glfw.KeyD] = "d"
-	keyToString[glfw.KeyE] = "e"
-	keyToString[glfw.KeyF] = "f"
-	keyToString[glfw.KeyG] = "g"
-	keyToString[glfw.KeyH] = "h"
-	keyToString[glfw.KeyI] = "i"
-	keyToString[glfw.KeyJ] = "j"
-	keyToString[glfw.KeyK] = "k"
-	keyToString[glfw.KeyL] = "l"
-	keyToString[glfw.KeyM] = "m"
-	keyToString[glfw.KeyN] = "n"
-	keyToString[glfw.KeyO] = "o"
-	keyToString[glfw.KeyP] = "p"
-	keyToString[glfw.KeyQ] = "q"
-	keyToString[glfw.KeyR] = "r"
-	keyToString[glfw.KeyS] = "s"
-	keyToString[glfw.KeyT] = "t"
-	keyToString[glfw.KeyU] = "u"
-	keyToString[glfw.KeyV] = "v"
-	keyToString[glfw.KeyW] = "w"
-	keyToString[glfw.KeyX] = "x"
-	keyToString[glfw.KeyY] = "y"
-	keyToString[glfw.KeyZ] = "z"
-	keyToString[glfw.KeyCapsLock] = "CAPSLOCK"
-	keyToString[glfw.KeyF1] = "F1"
-	keyToString[glfw.KeyF2] = "F2"
-	keyToString[glfw.KeyF3] = "F3"
-	keyToString[glfw.KeyF4] = "F4"
-	keyToString[glfw.KeyF5] = "F5"
-	keyToString[glfw.KeyF6] = "F6"
-	keyToString[glfw.KeyF7] = "F7"
-	keyToString[glfw.KeyF8] = "F8"
-	keyToString[glfw.KeyF9] = "F9"
-	keyToString[glfw.KeyF10] = "F10"
-	keyToString[glfw.KeyF11] = "F11"
-	keyToString[glfw.KeyF12] = "F12"
-	keyToString[glfw.KeyPrintScreen] = "PRINTSCREEN"
-	keyToString[glfw.KeyScrollLock] = "SCROLLLOCK"
-	keyToString[glfw.KeyPause] = "PAUSE"
-	keyToString[glfw.KeyInsert] = "INSERT"
-	keyToString[glfw.KeyHome] = "HOME"
-	keyToString[glfw.KeyPageUp] = "PAGEUP"
-	keyToString[glfw.KeyDelete] = "DELETE"
-	keyToString[glfw.KeyEnd] = "END"
-	keyToString[glfw.KeyPageDown] = "PAGEDOWN"
-	keyToString[glfw.KeyRight] = "RIGHT"
-	keyToString[glfw.KeyLeft] = "LEFT"
-	keyToString[glfw.KeyDown] = "DOWN"
-	keyToString[glfw.KeyUp] = "UP"
-	keyToString[glfw.KeyKPDivide] = "KP_DIVIDE"
-	keyToString[glfw.KeyKPMultiply] = "KP_MULTIPLY"
-	keyToString[glfw.KeyKPSubtract] = "KP_MINUS"
-	keyToString[glfw.KeyKPAdd] = "KP_PLUS"
-	keyToString[glfw.KeyKPEnter] = "KP_ENTER"
-	keyToString[glfw.KeyKP1] = "KP_1"
-	keyToString[glfw.KeyKP2] = "KP_2"
-	keyToString[glfw.KeyKP3] = "KP_3"
-	keyToString[glfw.KeyKP4] = "KP_4"
-	keyToString[glfw.KeyKP5] = "KP_5"
-	keyToString[glfw.KeyKP6] = "KP_6"
-	keyToString[glfw.KeyKP7] = "KP_7"
-	keyToString[glfw.KeyKP8] = "KP_8"
-	keyToString[glfw.KeyKP9] = "KP_9"
-	keyToString[glfw.KeyKP0] = "KP_0"
-	keyToString[glfw.KeyKPDecimal] = "KP_PERIOD"
-	keyToString[glfw.KeyKPEqual] = "KP_EQUALS"
-	keyToString[glfw.KeyF13] = "F13"
-	keyToString[glfw.KeyF14] = "F14"
-	keyToString[glfw.KeyF15] = "F15"
-	keyToString[glfw.KeyF16] = "F16"
-	keyToString[glfw.KeyF17] = "F17"
-	keyToString[glfw.KeyF18] = "F18"
-	keyToString[glfw.KeyF19] = "F19"
-	keyToString[glfw.KeyF20] = "F20"
-	keyToString[glfw.KeyF21] = "F21"
-	keyToString[glfw.KeyF22] = "F22"
-	keyToString[glfw.KeyF23] = "F23"
-	keyToString[glfw.KeyF24] = "F24"
-	keyToString[glfw.KeyMenu] = "MENU"
-	keyToString[glfw.KeyKPDecimal] = "KP_COMMA"
-	keyToString[glfw.KeyLeftControl] = "LCTRL"
-	keyToString[glfw.KeyLeftShift] = "LSHIFT"
-	keyToString[glfw.KeyLeftAlt] = "LALT"
-	keyToString[glfw.KeyLeftSuper] = "LGUI"
-	keyToString[glfw.KeyRightControl] = "RCTRL"
-	keyToString[glfw.KeyRightShift] = "RSHIFT"
-	keyToString[glfw.KeyRightAlt] = "RALT"
-	keyToString[glfw.KeyRightSuper] = "RGUI"
-	lower := make(map[glfw.Key]string)
-	for key, str := range keyToString {
-		lower[key] = strings.ToLower(str)
+func tokey(k glfw.Key) Key {
+	switch k {
+	case glfw.KeyA:
+		return KeyA
+	case glfw.KeyB:
+		return KeyB
+	case glfw.KeyC:
+		return KeyC
+	case glfw.KeyD:
+		return KeyD
+	case glfw.KeyE:
+		return KeyE
+	case glfw.KeyF:
+		return KeyF
+	case glfw.KeyG:
+		return KeyG
+	case glfw.KeyH:
+		return KeyH
+	case glfw.KeyI:
+		return KeyI
+	case glfw.KeyJ:
+		return KeyJ
+	case glfw.KeyK:
+		return KeyK
+	case glfw.KeyL:
+		return KeyL
+	case glfw.KeyM:
+		return KeyM
+	case glfw.KeyN:
+		return KeyN
+	case glfw.KeyO:
+		return KeyO
+	case glfw.KeyP:
+		return KeyP
+	case glfw.KeyQ:
+		return KeyQ
+	case glfw.KeyR:
+		return KeyR
+	case glfw.KeyS:
+		return KeyS
+	case glfw.KeyT:
+		return KeyT
+	case glfw.KeyU:
+		return KeyU
+	case glfw.KeyV:
+		return KeyV
+	case glfw.KeyW:
+		return KeyW
+	case glfw.KeyX:
+		return KeyX
+	case glfw.KeyY:
+		return KeyY
+	case glfw.KeyZ:
+		return KeyZ
+	case glfw.Key0:
+		return Key0
+	case glfw.Key1:
+		return Key1
+	case glfw.Key2:
+		return Key2
+	case glfw.Key3:
+		return Key3
+	case glfw.Key4:
+		return Key4
+	case glfw.Key5:
+		return Key5
+	case glfw.Key6:
+		return Key6
+	case glfw.Key7:
+		return Key7
+	case glfw.Key8:
+		return Key8
+	case glfw.Key9:
+		return Key9
+	case glfw.KeyKP0:
+		return KeyNum0
+	case glfw.KeyKP1:
+		return KeyNum1
+	case glfw.KeyKP2:
+		return KeyNum2
+	case glfw.KeyKP3:
+		return KeyNum3
+	case glfw.KeyKP4:
+		return KeyNum4
+	case glfw.KeyKP5:
+		return KeyNum5
+	case glfw.KeyKP6:
+		return KeyNum6
+	case glfw.KeyKP7:
+		return KeyNum7
+	case glfw.KeyKP8:
+		return KeyNum8
+	case glfw.KeyKP9:
+		return KeyNum9
+	case glfw.KeyF1:
+		return KeyF1
+	case glfw.KeyF2:
+		return KeyF2
+	case glfw.KeyF3:
+		return KeyF3
+	case glfw.KeyF4:
+		return KeyF4
+	case glfw.KeyF5:
+		return KeyF5
+	case glfw.KeyF6:
+		return KeyF6
+	case glfw.KeyF7:
+		return KeyF7
+	case glfw.KeyF8:
+		return KeyF8
+	case glfw.KeyF9:
+		return KeyF9
+	case glfw.KeyF10:
+		return KeyF10
+	case glfw.KeyF11:
+		return KeyF11
+	case glfw.KeyF12:
+		return KeyF12
+	case glfw.KeyF13:
+		return KeyF13
+	case glfw.KeyF14:
+		return KeyF14
+	case glfw.KeyF15:
+		return KeyF15
+	case glfw.KeyF16:
+		return KeyF16
+	case glfw.KeyF17:
+		return KeyF17
+	case glfw.KeyF18:
+		return KeyF18
+	case glfw.KeyF19:
+		return KeyF19
+	case glfw.KeyF20:
+		return KeyF20
+	case glfw.KeyF21:
+		return KeyF21
+	case glfw.KeyF22:
+		return KeyF22
+	case glfw.KeyF23:
+		return KeyF23
+	case glfw.KeyF24:
+		return KeyF24
+	case glfw.KeyEnter:
+		return KeyEnter
+	case glfw.KeyKPEnter:
+		return KeyNumEnter
+	case glfw.KeyLeftControl:
+		return KeyLeftControl
+	case glfw.KeyRightControl:
+		return KeyRightControl
+	case glfw.KeyLeftShift:
+		return KeyLeftShift
+	case glfw.KeyRightShift:
+		return KeyRightShift
+	case glfw.KeyLeftAlt:
+		return KeyLeftAlt
+	case glfw.KeyRightAlt:
+		return KeyRightAlt
+	case glfw.KeyLeft:
+		return KeyLeft
+	case glfw.KeyRight:
+		return KeyRight
+	case glfw.KeyUp:
+		return KeyUp
+	case glfw.KeyDown:
+		return KeyDown
+	case glfw.KeyEscape:
+		return KeyEscape
+	case glfw.KeySpace:
+		return KeySpace
+	case glfw.KeyBackspace:
+		return KeyBackspace
+	case glfw.KeyTab:
+		return KeyTab
+	case glfw.KeyHome:
+		return KeyHome
+	case glfw.KeyEnd:
+		return KeyEnd
+	case glfw.KeyPageDown:
+		return KeyPageDown
+	case glfw.KeyPageUp:
+		return KeyPageUp
+	case glfw.KeyDelete:
+		return KeyDelete
+	case glfw.KeyInsert:
+		return KeyInsert
+	case glfw.KeyKPAdd:
+		return KeyNumAdd
+	case glfw.KeyKPSubtract:
+		return KeyNumSubtract
+	case glfw.KeyKPMultiply:
+		return KeyNumMultiply
+	case glfw.KeyKPDivide:
+		return KeyNumDivide
+	case glfw.KeyCapsLock:
+		return KeyCapslock
+	case glfw.KeyPrintScreen:
+		return KeyPrint
+	case glfw.KeyPause:
+		return KeyPause
 	}
-	keyToString = lower
 
-	stringToKey = make(map[string]glfw.Key)
-	for key, str := range keyToString {
-		stringToKey[str] = key
-	}
+	return Key(0)
 }

@@ -38,22 +38,22 @@ func main() {
 		gameOverText = ""
 	}
 
-	mainErr := draw.RunWindow("Space Shooter", 640, 480, 0, func(window draw.Window) {
-		if window.WasKeyPressed("escape") {
+	mainErr := draw.RunWindow("Space Shooter", 640, 480, func(window draw.Window) {
+		if window.WasKeyPressed(draw.KeyEscape) {
 			window.Close()
 		}
-		if window.WasKeyPressed("n") {
+		if window.WasKeyPressed(draw.KeyN) {
 			reset()
 		}
 
 		if !gameOver {
-			if window.IsKeyDown("left") {
+			if window.IsKeyDown(draw.KeyLeft) {
 				ship.move(-speed)
 			}
-			if window.IsKeyDown("right") {
+			if window.IsKeyDown(draw.KeyRight) {
 				ship.move(speed)
 			}
-			if window.IsKeyDown("space") || window.WasKeyPressed("space") {
+			if window.IsKeyDown(draw.KeySpace) || window.WasKeyPressed(draw.KeySpace) {
 				if nextBullet <= 0 {
 					bullets = append(bullets,
 						&bullet{x: ship.x + 10, y: ship.y - 5})

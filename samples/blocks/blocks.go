@@ -40,9 +40,9 @@ func main() {
 		}
 	}
 
-	mainErr := draw.RunWindow("Blocks", gameW*tileSize, gameH*tileSize+scoreOffset, 0,
+	mainErr := draw.RunWindow("Blocks", gameW*tileSize, gameH*tileSize+scoreOffset,
 		func(window draw.Window) {
-			if window.WasKeyPressed("escape") {
+			if window.WasKeyPressed(draw.KeyEscape) {
 				window.Close()
 				return
 			}
@@ -50,23 +50,24 @@ func main() {
 			lost := field.isGameOver()
 
 			if !lost {
-				if window.WasKeyPressed("down") {
+				if window.WasKeyPressed(draw.KeyDown) {
 					dropBlock()
 				}
-				if window.WasKeyPressed("up") {
-					if window.IsKeyDown("lshift") || window.IsKeyDown("rshift") {
+				if window.WasKeyPressed(draw.KeyUp) {
+					if window.IsKeyDown(draw.KeyLeftShift) ||
+						window.IsKeyDown(draw.KeyRightShift) {
 						cur.rotate(field, -1)
 					} else {
 						cur.rotate(field, 1)
 					}
 				}
-				if window.WasKeyPressed("left") {
+				if window.WasKeyPressed(draw.KeyLeft) {
 					cur.x--
 					if cur.stuckIn(field) {
 						cur.x++
 					}
 				}
-				if window.WasKeyPressed("right") {
+				if window.WasKeyPressed(draw.KeyRight) {
 					cur.x++
 					if cur.stuckIn(field) {
 						cur.x--

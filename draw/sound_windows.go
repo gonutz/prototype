@@ -1,3 +1,5 @@
+// +build glfw,!sdl2
+
 package draw
 
 import (

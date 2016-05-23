@@ -1,4 +1,4 @@
-// +build sdl2
+// +build sdl2 !windows,!glfw
 
 package draw
 
@@ -15,6 +15,10 @@ import (
 	"unsafe"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 type window struct {
 	Events     []sdl.Event
 	MouseMoved bool
@@ -26,7 +30,7 @@ type window struct {
 	textures    map[string]*sdl.Texture
 	soundChunks map[string]*mix.Chunk
 	fontTexture *sdl.Texture
-	keyDown     map[string]bool
+	keyDown     map[Key]bool
 	typed       []rune
 	mouseDown   map[MouseButton]bool
 	clicks      []MouseClick
@@ -36,7 +40,7 @@ type window struct {
 var windowRunningMutex sync.Mutex
 
 // RunWindow creates a new window and calls update 60 times per second.
-func RunWindow(title string, width, height int, flags int, update UpdateFunction) error {
+func RunWindow(title string, width, height int, update UpdateFunction) error {
 	windowRunningMutex.Lock()
 
 	if update == nil {
@@ -48,17 +52,13 @@ func RunWindow(title string, width, height int, flags int, update UpdateFunction
 	}
 	defer sdl.Quit()
 
-	var sdlFlags uint32
-	if flags&Resizable > 0 {
-		sdlFlags |= sdl.WINDOW_RESIZABLE
-	}
-	sdlWindow, renderer, err := sdl.CreateWindowAndRenderer(width, height, sdlFlags)
+	sdlWindow, renderer, err := sdl.CreateWindowAndRenderer(width, height, 0)
 	if err != nil {
 		return err
 	}
 	defer sdlWindow.Destroy()
 	defer renderer.Destroy()
-	sdlWindow.SetTitle(title)
+	sdlWindow.SetTitle(title + " (SDL2)")
 	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 
 	if err := mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 1, 512); err != nil {
@@ -73,7 +73,7 @@ func RunWindow(title string, width, height int, flags int, update UpdateFunction
 		renderer:    renderer,
 		textures:    make(map[string]*sdl.Texture),
 		soundChunks: make(map[string]*mix.Chunk),
-		keyDown:     make(map[string]bool),
+		keyDown:     make(map[Key]bool),
 		mouseDown:   make(map[MouseButton]bool),
 	}
 	win.createBitmapFont()
@@ -161,11 +161,11 @@ func makeClick(event *sdl.MouseButtonEvent) MouseClick {
 }
 
 func (w *window) setKeyDown(key sdl.Keycode, down bool) {
-	name := strings.ToLower(keyToString[key])
-	w.keyDown[name] = down
+	k := toKey(key)
+	if k != 0 {
+		w.keyDown[k] = down
+	}
 }
-
-var keyToString map[sdl.Keycode]string
 
 func (w *window) close() {
 	for _, sound := range w.soundChunks {
@@ -187,23 +187,20 @@ func (w *window) Size() (int, int) {
 	return w.window.GetSize()
 }
 
-func (w *window) WasKeyPressed(key string) bool {
+func (w *window) WasKeyPressed(key Key) bool {
 	for _, e := range w.Events {
 		switch event := e.(type) {
 		case *sdl.KeyDownEvent:
-			return isKey(key, event.Keysym.Sym)
+			if key == toKey(event.Keysym.Sym) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-func isKey(name string, key sdl.Keycode) bool {
-	keyString, ok := keyToString[key]
-	return ok && strings.ToLower(keyString) == strings.ToLower(name)
-}
-
-func (w *window) IsKeyDown(key string) bool {
-	return w.keyDown[strings.ToLower(key)]
+func (w *window) IsKeyDown(key Key) bool {
+	return w.keyDown[key]
 }
 
 func (w *window) WasCharTyped(char rune) bool {
@@ -221,6 +218,10 @@ func (w *window) IsMouseDown(button MouseButton) bool {
 
 func (w *window) Clicks() []MouseClick {
 	return w.clicks
+}
+
+func (w *window) Characters() string {
+	return string(w.typed)
 }
 
 func (w *window) MousePosition() (int, int) {
@@ -379,6 +380,23 @@ func (w *window) DrawImageFile(path string, x, y int) error {
 	return nil
 }
 
+func (win *window) DrawImageFileRotated(path string, x, y, degrees int) error {
+	win.loadImageIfNecessary(path)
+	img := win.textures[path]
+	if img == nil {
+		return errors.New(`File "` + path + `" could not be loaded.`)
+	}
+	_, _, width, height, _ := img.Query()
+	win.renderer.CopyEx(
+		img,
+		nil,
+		&sdl.Rect{int32(x), int32(y), width, height},
+		float64(degrees),
+		nil,
+		sdl.FLIP_NONE)
+	return nil
+}
+
 func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 	win.loadImageIfNecessary(path)
 	img := win.textures[path]
@@ -494,123 +512,206 @@ func (w *window) loadSoundIfNecessary(path string) {
 	w.soundChunks[path], _ = mix.LoadWAV(path)
 }
 
-func init() {
-	runtime.LockOSThread()
+func toKey(k sdl.Keycode) Key {
+	switch k {
+	case sdl.K_a:
+		return KeyA
+	case sdl.K_b:
+		return KeyB
+	case sdl.K_c:
+		return KeyC
+	case sdl.K_d:
+		return KeyD
+	case sdl.K_e:
+		return KeyE
+	case sdl.K_f:
+		return KeyF
+	case sdl.K_g:
+		return KeyG
+	case sdl.K_h:
+		return KeyH
+	case sdl.K_i:
+		return KeyI
+	case sdl.K_j:
+		return KeyJ
+	case sdl.K_k:
+		return KeyK
+	case sdl.K_l:
+		return KeyL
+	case sdl.K_m:
+		return KeyM
+	case sdl.K_n:
+		return KeyN
+	case sdl.K_o:
+		return KeyO
+	case sdl.K_p:
+		return KeyP
+	case sdl.K_q:
+		return KeyQ
+	case sdl.K_r:
+		return KeyR
+	case sdl.K_s:
+		return KeyS
+	case sdl.K_t:
+		return KeyT
+	case sdl.K_u:
+		return KeyU
+	case sdl.K_v:
+		return KeyV
+	case sdl.K_w:
+		return KeyW
+	case sdl.K_x:
+		return KeyX
+	case sdl.K_y:
+		return KeyY
+	case sdl.K_z:
+		return KeyZ
+	case sdl.K_0:
+		return Key0
+	case sdl.K_1:
+		return Key1
+	case sdl.K_2:
+		return Key2
+	case sdl.K_3:
+		return Key3
+	case sdl.K_4:
+		return Key4
+	case sdl.K_5:
+		return Key5
+	case sdl.K_6:
+		return Key6
+	case sdl.K_7:
+		return Key7
+	case sdl.K_8:
+		return Key8
+	case sdl.K_9:
+	case sdl.K_KP_0:
+		return KeyNum0
+	case sdl.K_KP_1:
+		return KeyNum1
+	case sdl.K_KP_2:
+		return KeyNum2
+	case sdl.K_KP_3:
+		return KeyNum3
+	case sdl.K_KP_4:
+		return KeyNum4
+	case sdl.K_KP_5:
+		return KeyNum5
+	case sdl.K_KP_6:
+		return KeyNum6
+	case sdl.K_KP_7:
+		return KeyNum7
+	case sdl.K_KP_8:
+		return KeyNum8
+	case sdl.K_KP_9:
+		return KeyNum9
+	case sdl.K_F1:
+		return KeyF1
+	case sdl.K_F2:
+		return KeyF2
+	case sdl.K_F3:
+		return KeyF3
+	case sdl.K_F4:
+		return KeyF4
+	case sdl.K_F5:
+		return KeyF5
+	case sdl.K_F6:
+		return KeyF6
+	case sdl.K_F7:
+		return KeyF7
+	case sdl.K_F8:
+		return KeyF8
+	case sdl.K_F9:
+		return KeyF9
+	case sdl.K_F10:
+		return KeyF10
+	case sdl.K_F11:
+		return KeyF11
+	case sdl.K_F12:
+		return KeyF12
+	case sdl.K_F13:
+		return KeyF13
+	case sdl.K_F14:
+		return KeyF14
+	case sdl.K_F15:
+		return KeyF15
+	case sdl.K_F16:
+		return KeyF16
+	case sdl.K_F17:
+		return KeyF17
+	case sdl.K_F18:
+		return KeyF18
+	case sdl.K_F19:
+		return KeyF19
+	case sdl.K_F20:
+		return KeyF20
+	case sdl.K_F21:
+		return KeyF21
+	case sdl.K_F22:
+		return KeyF22
+	case sdl.K_F23:
+		return KeyF23
+	case sdl.K_F24:
+		return KeyF24
+	case sdl.K_RETURN:
+		return KeyEnter
+	case sdl.K_KP_ENTER:
+		return KeyNumEnter
+	case sdl.K_LCTRL:
+		return KeyLeftControl
+	case sdl.K_RCTRL:
+		return KeyRightControl
+	case sdl.K_LSHIFT:
+		return KeyLeftShift
+	case sdl.K_RSHIFT:
+		return KeyRightShift
+	case sdl.K_LALT:
+		return KeyLeftAlt
+	case sdl.K_RALT:
+		return KeyRightAlt
+	case sdl.K_LEFT:
+		return KeyLeft
+	case sdl.K_RIGHT:
+		return KeyRight
+	case sdl.K_UP:
+		return KeyUp
+	case sdl.K_DOWN:
+		return KeyDown
+	case sdl.K_ESCAPE:
+		return KeyEscape
+	case sdl.K_SPACE:
+		return KeySpace
+	case sdl.K_BACKSPACE:
+		return KeyBackspace
+	case sdl.K_TAB:
+		return KeyTab
+	case sdl.K_HOME:
+		return KeyHome
+	case sdl.K_END:
+		return KeyEnd
+	case sdl.K_PAGEDOWN:
+		return KeyPageDown
+	case sdl.K_PAGEUP:
+		return KeyPageUp
+	case sdl.K_DELETE:
+		return KeyDelete
+	case sdl.K_INSERT:
+		return KeyInsert
+	case sdl.K_KP_PLUS:
+		return KeyNumAdd
+	case sdl.K_KP_MINUS:
+		return KeyNumSubtract
+	case sdl.K_KP_MULTIPLY:
+		return KeyNumMultiply
+	case sdl.K_KP_DIVIDE:
+		return KeyNumDivide
+	case sdl.K_CAPSLOCK:
+		return KeyCapslock
+	case sdl.K_PRINTSCREEN:
+		return KeyPrint
+	case sdl.K_PAUSE:
+		return KeyPause
+	}
 
-	keyToString = make(map[sdl.Keycode]string)
-	keyToString[sdl.K_UNKNOWN] = "UNKNOWN"
-	keyToString[sdl.K_RETURN] = "ENTER"
-	keyToString[sdl.K_ESCAPE] = "ESCAPE"
-	keyToString[sdl.K_BACKSPACE] = "BACKSPACE"
-	keyToString[sdl.K_TAB] = "TAB"
-	keyToString[sdl.K_SPACE] = "SPACE"
-	keyToString[sdl.K_COMMA] = "COMMA"
-	keyToString[sdl.K_MINUS] = "MINUS"
-	keyToString[sdl.K_PERIOD] = "PERIOD"
-	keyToString[sdl.K_SLASH] = "SLASH"
-	keyToString[sdl.K_0] = "0"
-	keyToString[sdl.K_1] = "1"
-	keyToString[sdl.K_2] = "2"
-	keyToString[sdl.K_3] = "3"
-	keyToString[sdl.K_4] = "4"
-	keyToString[sdl.K_5] = "5"
-	keyToString[sdl.K_6] = "6"
-	keyToString[sdl.K_7] = "7"
-	keyToString[sdl.K_8] = "8"
-	keyToString[sdl.K_9] = "9"
-	keyToString[sdl.K_SEMICOLON] = "SEMICOLON"
-	keyToString[sdl.K_LEFTBRACKET] = "LEFTBRACKET"
-	keyToString[sdl.K_BACKSLASH] = "BACKSLASH"
-	keyToString[sdl.K_RIGHTBRACKET] = "RIGHTBRACKET"
-	keyToString[sdl.K_a] = "a"
-	keyToString[sdl.K_b] = "b"
-	keyToString[sdl.K_c] = "c"
-	keyToString[sdl.K_d] = "d"
-	keyToString[sdl.K_e] = "e"
-	keyToString[sdl.K_f] = "f"
-	keyToString[sdl.K_g] = "g"
-	keyToString[sdl.K_h] = "h"
-	keyToString[sdl.K_i] = "i"
-	keyToString[sdl.K_j] = "j"
-	keyToString[sdl.K_k] = "k"
-	keyToString[sdl.K_l] = "l"
-	keyToString[sdl.K_m] = "m"
-	keyToString[sdl.K_n] = "n"
-	keyToString[sdl.K_o] = "o"
-	keyToString[sdl.K_p] = "p"
-	keyToString[sdl.K_q] = "q"
-	keyToString[sdl.K_r] = "r"
-	keyToString[sdl.K_s] = "s"
-	keyToString[sdl.K_t] = "t"
-	keyToString[sdl.K_u] = "u"
-	keyToString[sdl.K_v] = "v"
-	keyToString[sdl.K_w] = "w"
-	keyToString[sdl.K_x] = "x"
-	keyToString[sdl.K_y] = "y"
-	keyToString[sdl.K_z] = "z"
-	keyToString[sdl.K_CAPSLOCK] = "CAPSLOCK"
-	keyToString[sdl.K_F1] = "F1"
-	keyToString[sdl.K_F2] = "F2"
-	keyToString[sdl.K_F3] = "F3"
-	keyToString[sdl.K_F4] = "F4"
-	keyToString[sdl.K_F5] = "F5"
-	keyToString[sdl.K_F6] = "F6"
-	keyToString[sdl.K_F7] = "F7"
-	keyToString[sdl.K_F8] = "F8"
-	keyToString[sdl.K_F9] = "F9"
-	keyToString[sdl.K_F10] = "F10"
-	keyToString[sdl.K_F11] = "F11"
-	keyToString[sdl.K_F12] = "F12"
-	keyToString[sdl.K_PRINTSCREEN] = "PRINTSCREEN"
-	keyToString[sdl.K_SCROLLLOCK] = "SCROLLLOCK"
-	keyToString[sdl.K_PAUSE] = "PAUSE"
-	keyToString[sdl.K_INSERT] = "INSERT"
-	keyToString[sdl.K_HOME] = "HOME"
-	keyToString[sdl.K_PAGEUP] = "PAGEUP"
-	keyToString[sdl.K_DELETE] = "DELETE"
-	keyToString[sdl.K_END] = "END"
-	keyToString[sdl.K_PAGEDOWN] = "PAGEDOWN"
-	keyToString[sdl.K_RIGHT] = "RIGHT"
-	keyToString[sdl.K_LEFT] = "LEFT"
-	keyToString[sdl.K_DOWN] = "DOWN"
-	keyToString[sdl.K_UP] = "UP"
-	keyToString[sdl.K_KP_DIVIDE] = "KP_DIVIDE"
-	keyToString[sdl.K_KP_MULTIPLY] = "KP_MULTIPLY"
-	keyToString[sdl.K_KP_MINUS] = "KP_MINUS"
-	keyToString[sdl.K_KP_PLUS] = "KP_PLUS"
-	keyToString[sdl.K_KP_ENTER] = "KP_ENTER"
-	keyToString[sdl.K_KP_1] = "KP_1"
-	keyToString[sdl.K_KP_2] = "KP_2"
-	keyToString[sdl.K_KP_3] = "KP_3"
-	keyToString[sdl.K_KP_4] = "KP_4"
-	keyToString[sdl.K_KP_5] = "KP_5"
-	keyToString[sdl.K_KP_6] = "KP_6"
-	keyToString[sdl.K_KP_7] = "KP_7"
-	keyToString[sdl.K_KP_8] = "KP_8"
-	keyToString[sdl.K_KP_9] = "KP_9"
-	keyToString[sdl.K_KP_0] = "KP_0"
-	keyToString[sdl.K_KP_PERIOD] = "KP_PERIOD"
-	keyToString[sdl.K_KP_EQUALS] = "KP_EQUALS"
-	keyToString[sdl.K_F13] = "F13"
-	keyToString[sdl.K_F14] = "F14"
-	keyToString[sdl.K_F15] = "F15"
-	keyToString[sdl.K_F16] = "F16"
-	keyToString[sdl.K_F17] = "F17"
-	keyToString[sdl.K_F18] = "F18"
-	keyToString[sdl.K_F19] = "F19"
-	keyToString[sdl.K_F20] = "F20"
-	keyToString[sdl.K_F21] = "F21"
-	keyToString[sdl.K_F22] = "F22"
-	keyToString[sdl.K_F23] = "F23"
-	keyToString[sdl.K_F24] = "F24"
-	keyToString[sdl.K_MENU] = "MENU"
-	keyToString[sdl.K_KP_COMMA] = "KP_COMMA"
-	keyToString[sdl.K_LCTRL] = "LCTRL"
-	keyToString[sdl.K_LSHIFT] = "LSHIFT"
-	keyToString[sdl.K_LALT] = "LALT"
-	keyToString[sdl.K_LGUI] = "LGUI"
-	keyToString[sdl.K_RCTRL] = "RCTRL"
-	keyToString[sdl.K_RSHIFT] = "RSHIFT"
-	keyToString[sdl.K_RALT] = "RALT"
-	keyToString[sdl.K_RGUI] = "RGUI"
+	return Key(0)
 }
