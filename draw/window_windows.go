@@ -20,6 +20,18 @@ RAWKEYBOARD getRawKeyBoard(LPARAM lParam, int* valid) {
 		return raw->data.keyboard;
 	}
 }
+
+void enableRawKeyboardInput(void* window) {
+	RAWINPUTDEVICE inputDevice;
+	inputDevice.usUsagePage = 0x01;
+	inputDevice.usUsage = 0x06;
+	inputDevice.dwFlags = 0;
+	inputDevice.hwndTarget = (HWND)window;
+
+	// NOTE Go 1.6 panics when doing this in Go because the window pointer will
+	// be included in the C struct.
+	RegisterRawInputDevices(&inputDevice, 1, sizeof(RAWINPUTDEVICE));
+}
 */
 import "C"
 
@@ -144,13 +156,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	globalWindow.handle = window
 	w32.SetWindowText(window, title+" (D3D9)")
 
-	inputDevice := C.RAWINPUTDEVICE{
-		usUsagePage: 0x01,
-		usUsage:     0x06,
-		dwFlags:     0, //C.RIDEV_NOLEGACY,
-		hwndTarget:  C.HWND(unsafe.Pointer(window)),
-	}
-	C.RegisterRawInputDevices(&inputDevice, 1, C.sizeof_RAWINPUTDEVICE)
+	C.enableRawKeyboardInput(unsafe.Pointer(window))
 
 	device, _, err := d3d.CreateDevice(
 		d3d9.ADAPTER_DEFAULT,
