@@ -812,7 +812,7 @@ func rawInputToKey(kb C.RAWKEYBOARD) (key Key, down bool) {
 
 	if virtualKey == 255 {
 		// discard "fake keys" which are part of an escaped sequence
-		return 1, down
+		return 0, down
 	} else if virtualKey == C.VK_SHIFT {
 		virtualKey = C.USHORT(C.MapVirtualKey(
 			C.UINT(scanCode),
