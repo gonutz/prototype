@@ -262,27 +262,27 @@ const (
 	KeyRightShift
 	KeyLeftAlt
 	KeyRightAlt
-	KeyLeft  //
-	KeyRight //
-	KeyUp    //
-	KeyDown  //
+	KeyLeft
+	KeyRight
+	KeyUp
+	KeyDown
 	KeyEscape
 	KeySpace
 	KeyBackspace
 	KeyTab
-	KeyHome     //
-	KeyEnd      //
-	KeyPageDown //
-	KeyPageUp   //
-	KeyDelete   //
-	KeyInsert   //
+	KeyHome
+	KeyEnd
+	KeyPageDown
+	KeyPageUp
+	KeyDelete
+	KeyInsert
 	KeyNumAdd
 	KeyNumSubtract
 	KeyNumMultiply
 	KeyNumDivide
 	KeyCapslock
-	KeyPrint //
-	KeyPause //
+	KeyPrint
+	KeyPause
 
 	// NOTE keyCount has to come last
 	keyCount
