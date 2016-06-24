@@ -32,7 +32,7 @@ package main
 import "github.com/gonutz/prototype/draw"
 
 func main() {
-	draw.RunWindow("Title", 640, 480, draw.Resizable, update)
+	draw.RunWindow("Title", 640, 480, update)
 }
 
 func update(window draw.Window) {
