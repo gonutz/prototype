@@ -24,7 +24,7 @@ type Window interface {
 	// during the last frame. If the user presses a key and releases it in the
 	// same frame, this function stores that information and will return true.
 	// See the Key... constants for the available keys that can be queried.
-	// NOTE do not use this for text input, use WasCharTyped instead.
+	// NOTE do not use this for text input, use Characters instead.
 	WasKeyPressed(key Key) bool
 
 	// IsKeyDown reports whether the specified key is being held down at the
