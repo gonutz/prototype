@@ -31,12 +31,19 @@ func main() {
 	score := 0
 	totalLines := 0
 
-	dropBlock := func() {
+	dropBlock := func() (hitGround bool) {
 		cur.y--
 		if cur.stuckIn(field) {
 			cur.y++
 			field.solidify(cur)
 			cur = randomBlock()
+			return true
+		}
+		return false
+	}
+
+	dropBlockAllTheWay := func() {
+		for !dropBlock() {
 		}
 	}
 
@@ -52,6 +59,9 @@ func main() {
 			if !lost {
 				if window.WasKeyPressed(draw.KeyDown) {
 					dropBlock()
+				}
+				if window.WasKeyPressed(draw.KeySpace) {
+					dropBlockAllTheWay()
 				}
 				if window.WasKeyPressed(draw.KeyUp) {
 					if window.IsKeyDown(draw.KeyLeftShift) ||
