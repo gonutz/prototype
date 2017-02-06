@@ -155,6 +155,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	globalWindow.handle = window
 	w32.SetWindowText(window, title+" (D3D9)")
+	w32.ShowWindow(w32.GetConsoleWindow(), w32.SW_HIDE)
 
 	C.enableRawKeyboardInput(unsafe.Pointer(window))
 
