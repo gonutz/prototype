@@ -37,6 +37,7 @@ func main() {
 			cur.y++
 			field.solidify(cur)
 			cur = randomBlock()
+			nextDrop = dropDelay
 			return true
 		}
 		return false
