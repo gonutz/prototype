@@ -122,9 +122,16 @@ func main() {
 					}
 				}
 			}
+			// compute where the block would end up if dropped to the ground
+			dropped := *cur
+			for !dropped.stuckIn(field) {
+				dropped.y--
+			}
+			dropped.y++
 
 			field.draw(window)
-			cur.draw(window)
+			dropped.draw(window, 0.15)
+			cur.draw(window, 1)
 			window.FillRect(0, 0, gameW*tileSize, scoreOffset, draw.White)
 			scoreText := fmt.Sprintf("Score %v  Lines %v", score, totalLines)
 			w, h := window.GetTextSize(scoreText)
@@ -161,8 +168,9 @@ func (b *block) rotate(field *field, direction int) {
 	}
 }
 
-func (b *block) draw(window draw.Window) {
+func (b *block) draw(window draw.Window, alpha float32) {
 	color := shapeColors[b.shape]
+	color.A = alpha
 	outlineColor := color
 	outlineColor.R *= 0.5
 	outlineColor.G *= 0.5
