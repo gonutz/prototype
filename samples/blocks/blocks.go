@@ -26,6 +26,7 @@ func main() {
 
 	var (
 		cur               *block
+		next              *block
 		dropDelay         int
 		nextSpeedIncrease int
 		nextDrop          int
@@ -39,7 +40,8 @@ func main() {
 		if cur.stuckIn(field) {
 			cur.y++
 			field.solidify(cur)
-			cur = randomBlock()
+			cur = next
+			next = randomBlock()
 			nextDrop = dropDelay
 			return true
 		}
@@ -53,6 +55,7 @@ func main() {
 
 	restart := func() {
 		cur = randomBlock()
+		next = randomBlock()
 		dropDelay = initialDropSpeed
 		nextSpeedIncrease = linesBeforeAcceleration
 		nextDrop = dropDelay
@@ -63,7 +66,7 @@ func main() {
 
 	restart()
 
-	mainErr := draw.RunWindow("Blocks", gameW*tileSize, gameH*tileSize+scoreOffset,
+	mainErr := draw.RunWindow("Blocks", (5+gameW)*tileSize, gameH*tileSize+scoreOffset,
 		func(window draw.Window) {
 			if window.WasKeyPressed(draw.KeyEscape) {
 				window.Close()
@@ -129,9 +132,17 @@ func main() {
 			}
 			dropped.y++
 
+			window.FillRect(
+				gameW*tileSize,
+				0,
+				5*tileSize,
+				gameH*tileSize+scoreOffset,
+				draw.DarkGray,
+			)
 			field.draw(window)
 			dropped.draw(window, 0.15)
 			cur.draw(window, 1)
+			next.drawAt(window, gameW*tileSize-tileSize-tileSize/2, 3*tileSize, 1)
 			window.FillRect(0, 0, gameW*tileSize, scoreOffset, draw.White)
 			scoreText := fmt.Sprintf("Score %v  Lines %v", score, totalLines)
 			w, h := window.GetTextSize(scoreText)
@@ -168,7 +179,7 @@ func (b *block) rotate(field *field, direction int) {
 	}
 }
 
-func (b *block) draw(window draw.Window, alpha float32) {
+func (b *block) drawAt(window draw.Window, ofsX, ofsY int, alpha float32) {
 	color := shapeColors[b.shape]
 	color.A = alpha
 	outlineColor := color
@@ -177,10 +188,14 @@ func (b *block) draw(window draw.Window, alpha float32) {
 	outlineColor.B *= 0.5
 	tiles := b.tiles()
 	for _, tile := range tiles {
-		x, y := tile.x*tileSize, tileToScreenY(tile.y)
+		x, y := ofsX+tile.x*tileSize, ofsY+tileToScreenY(tile.y)
 		window.FillRect(x, y, tileSize, tileSize, color)
 		window.DrawRect(x, y, tileSize, tileSize, outlineColor)
 	}
+}
+
+func (b *block) draw(window draw.Window, alpha float32) {
+	b.drawAt(window, 0, 0, alpha)
 }
 
 func (b *block) tiles() (tiles [4]point) {
