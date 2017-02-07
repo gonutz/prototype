@@ -172,6 +172,12 @@ func main() {
 				window.FillRect(x, y, w, h, draw.Black)
 				window.DrawScaledText(text, x, y, scale, draw.White)
 			}
+
+			window.DrawText(`
+Up: rotate
+Space: drop
+P:  (un)pause
+F2: new game`, gameW*tileSize+15, gameH*tileSize+scoreOffset-85, draw.White)
 		})
 
 	if mainErr != nil {
