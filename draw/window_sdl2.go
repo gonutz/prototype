@@ -4,15 +4,16 @@ package draw
 
 import (
 	"errors"
-	"github.com/veandco/go-sdl2/sdl"
-	"github.com/veandco/go-sdl2/sdl_image"
-	"github.com/veandco/go-sdl2/sdl_mixer"
 	"math"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
+
+	"github.com/veandco/go-sdl2/sdl"
+	"github.com/veandco/go-sdl2/sdl_image"
+	"github.com/veandco/go-sdl2/sdl_mixer"
 )
 
 func init() {
