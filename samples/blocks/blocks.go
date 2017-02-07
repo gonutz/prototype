@@ -33,6 +33,7 @@ func main() {
 		field             *field
 		score             int
 		totalLines        int
+		paused            bool
 	)
 
 	dropBlock := func() (hitGround bool) {
@@ -62,6 +63,7 @@ func main() {
 		field = newField(gameW, gameH)
 		score = 0
 		totalLines = 0
+		paused = false
 	}
 
 	restart()
@@ -81,47 +83,52 @@ func main() {
 			lost := field.isGameOver()
 
 			if !lost {
-				if window.WasKeyPressed(draw.KeyDown) {
-					dropBlock()
+				if window.WasKeyPressed(draw.KeyP) {
+					paused = !paused
 				}
-				if window.WasKeyPressed(draw.KeySpace) {
-					dropBlockAllTheWay()
-				}
-				if window.WasKeyPressed(draw.KeyUp) {
-					if window.IsKeyDown(draw.KeyLeftShift) ||
-						window.IsKeyDown(draw.KeyRightShift) {
-						cur.rotate(field, -1)
-					} else {
-						cur.rotate(field, 1)
+				if !paused {
+					if window.WasKeyPressed(draw.KeyDown) {
+						dropBlock()
 					}
-				}
-				if window.WasKeyPressed(draw.KeyLeft) {
-					cur.x--
-					if cur.stuckIn(field) {
-						cur.x++
+					if window.WasKeyPressed(draw.KeySpace) {
+						dropBlockAllTheWay()
 					}
-				}
-				if window.WasKeyPressed(draw.KeyRight) {
-					cur.x++
-					if cur.stuckIn(field) {
+					if window.WasKeyPressed(draw.KeyUp) {
+						if window.IsKeyDown(draw.KeyLeftShift) ||
+							window.IsKeyDown(draw.KeyRightShift) {
+							cur.rotate(field, -1)
+						} else {
+							cur.rotate(field, 1)
+						}
+					}
+					if window.WasKeyPressed(draw.KeyLeft) {
 						cur.x--
+						if cur.stuckIn(field) {
+							cur.x++
+						}
 					}
-				}
+					if window.WasKeyPressed(draw.KeyRight) {
+						cur.x++
+						if cur.stuckIn(field) {
+							cur.x--
+						}
+					}
 
-				nextDrop--
-				if nextDrop == 0 {
-					nextDrop = dropDelay
-					dropBlock()
-				}
+					nextDrop--
+					if nextDrop == 0 {
+						nextDrop = dropDelay
+						dropBlock()
+					}
 
-				removed := field.clearLines()
-				totalLines += removed
-				score += scores[removed]
-				if totalLines >= nextSpeedIncrease {
-					nextSpeedIncrease += linesBeforeAcceleration
-					dropDelay -= dropSpeedAccelaration
-					if dropDelay < minDropSpeed {
-						dropDelay = minDropSpeed
+					removed := field.clearLines()
+					totalLines += removed
+					score += scores[removed]
+					if totalLines >= nextSpeedIncrease {
+						nextSpeedIncrease += linesBeforeAcceleration
+						dropDelay -= dropSpeedAccelaration
+						if dropDelay < minDropSpeed {
+							dropDelay = minDropSpeed
+						}
 					}
 				}
 			}
@@ -139,23 +146,31 @@ func main() {
 				gameH*tileSize+scoreOffset,
 				draw.DarkGray,
 			)
-			field.draw(window)
-			dropped.draw(window, 0.15)
-			cur.draw(window, 1)
-			next.drawAt(window, gameW*tileSize-tileSize-tileSize/2, 3*tileSize, 1)
+
+			if !paused {
+				field.draw(window)
+				dropped.draw(window, 0.15)
+				cur.draw(window, 1)
+				next.drawAt(window, gameW*tileSize-tileSize-tileSize/2, 3*tileSize, 1)
+			}
 			window.FillRect(0, 0, gameW*tileSize, scoreOffset, draw.White)
 			scoreText := fmt.Sprintf("Score %v  Lines %v", score, totalLines)
 			w, h := window.GetTextSize(scoreText)
 			x, y := (gameW*tileSize-w)/2, (scoreOffset-h)/2
 			window.DrawText(scoreText, x, y, draw.Black)
 
+			text := ""
 			if lost {
+				text = "Game Over"
+			} else if paused {
+				text = "Pause"
+			}
+			if text != "" {
 				scale := float32(3.0)
-				lostText := "Game Over"
-				w, h := window.GetScaledTextSize(lostText, scale)
+				w, h := window.GetScaledTextSize(text, scale)
 				x, y := (gameW*tileSize-w)/2, (gameH*tileSize-h)/2
 				window.FillRect(x, y, w, h, draw.Black)
-				window.DrawScaledText(lostText, x, y, scale, draw.White)
+				window.DrawScaledText(text, x, y, scale, draw.White)
 			}
 		})
 
