@@ -1,4 +1,4 @@
-// +build glfw,!sdl2
+// +build !sdl2
 
 package draw
 
