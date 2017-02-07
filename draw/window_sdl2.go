@@ -21,7 +21,6 @@ func init() {
 }
 
 type window struct {
-	Events     []sdl.Event
 	MouseMoved bool
 
 	update      UpdateFunction
@@ -35,6 +34,7 @@ type window struct {
 	typed       []rune
 	mouseDown   map[MouseButton]bool
 	clicks      []MouseClick
+	pressedKeys []Key
 	mouse       struct{ x, y int }
 }
 
@@ -133,7 +133,6 @@ func (w *window) runMainLoop() {
 			case *sdl.KeyUpEvent:
 				w.setKeyDown(event.Keysym.Sym, false)
 			}
-			w.Events = append(w.Events, e)
 		}
 
 		now := time.Now()
@@ -144,7 +143,7 @@ func (w *window) runMainLoop() {
 			// client updates window
 			w.update(w)
 			// reset all events
-			w.Events = nil
+			w.pressedKeys = nil
 			w.MouseMoved = false
 			w.clicks = nil
 			w.typed = nil
@@ -165,6 +164,9 @@ func (w *window) setKeyDown(key sdl.Keycode, down bool) {
 	k := toKey(key)
 	if k != 0 {
 		w.keyDown[k] = down
+		if down {
+			w.pressedKeys = append(w.pressedKeys, k)
+		}
 	}
 }
 
@@ -189,12 +191,9 @@ func (w *window) Size() (int, int) {
 }
 
 func (w *window) WasKeyPressed(key Key) bool {
-	for _, e := range w.Events {
-		switch event := e.(type) {
-		case *sdl.KeyDownEvent:
-			if key == toKey(event.Keysym.Sym) {
-				return true
-			}
+	for _, k := range w.pressedKeys {
+		if k == key {
+			return true
 		}
 	}
 	return false
