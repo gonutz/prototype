@@ -38,10 +38,6 @@ import "C"
 import (
 	"bytes"
 	"errors"
-	"github.com/AllenDang/w32"
-	"github.com/gonutz/d3d9"
-	"github.com/gonutz/mixer"
-	"github.com/gonutz/mixer/wav"
 	"image"
 	"image/draw"
 	"image/png"
@@ -53,6 +49,11 @@ import (
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
+
+	"github.com/gonutz/d3d9"
+	"github.com/gonutz/mixer"
+	"github.com/gonutz/mixer/wav"
+	"github.com/gonutz/w32"
 )
 
 func init() {
@@ -155,8 +156,11 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	globalWindow.handle = window
 	w32.SetWindowText(window, title+" (D3D9)")
-	w32.ShowWindow(w32.GetConsoleWindow(), w32.SW_HIDE)
 
+	// hide the console window if double-clicking on the executable
+	hideConsoleWindow()
+
+	// raw keyboard input allows us to handle keys like shift/control/alt
 	C.enableRawKeyboardInput(unsafe.Pointer(window))
 
 	device, _, err := d3d.CreateDevice(
@@ -245,6 +249,43 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	globalWindow = nil
 	return nil
+}
+
+func hideConsoleWindow() {
+	console := w32.GetConsoleWindow()
+	if console == 0 {
+		return
+	}
+
+	_, consoleProcID := w32.GetWindowThreadProcessId(console)
+	if consoleProcID == 0 {
+		return
+	}
+
+	consoleProc := w32.OpenProcess(
+		w32.PROCESS_QUERY_INFORMATION,
+		false,
+		uint32(consoleProcID),
+	)
+	if consoleProc == 0 {
+		return
+	}
+
+	var creationTime, ignore w32.FILETIME
+	if w32.GetProcessTimes(consoleProc, &creationTime, &ignore, &ignore, &ignore) {
+		now := w32.GetSystemTimeAsFileTime()
+		dt := now.ToUint64() - creationTime.ToUint64()
+		const oneSecond = 1000 * 1000
+		if dt < oneSecond {
+			// Heuristic: if the console was active for a short period of time,
+			// it was probably popped up with the window after double clicking
+			// the executable and not the developer typing "go run ..." from the
+			// command line.
+			// In this case, hide the console as this is a user playing our
+			// game.
+			w32.ShowWindowAsync(console, w32.SW_HIDE)
+		}
+	}
 }
 
 type window struct {
