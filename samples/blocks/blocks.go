@@ -22,14 +22,17 @@ const (
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	cur := randomBlock()
-	dropDelay := initialDropSpeed
-	nextSpeedIncrease := linesBeforeAcceleration
-	nextDrop := dropDelay
-	field := newField(gameW, gameH)
 	scores := []int{0, 10, 25, 100, 500}
-	score := 0
-	totalLines := 0
+
+	var (
+		cur               *block
+		dropDelay         int
+		nextSpeedIncrease int
+		nextDrop          int
+		field             *field
+		score             int
+		totalLines        int
+	)
 
 	dropBlock := func() (hitGround bool) {
 		cur.y--
@@ -48,10 +51,27 @@ func main() {
 		}
 	}
 
+	restart := func() {
+		cur = randomBlock()
+		dropDelay = initialDropSpeed
+		nextSpeedIncrease = linesBeforeAcceleration
+		nextDrop = dropDelay
+		field = newField(gameW, gameH)
+		score = 0
+		totalLines = 0
+	}
+
+	restart()
+
 	mainErr := draw.RunWindow("Blocks", gameW*tileSize, gameH*tileSize+scoreOffset,
 		func(window draw.Window) {
 			if window.WasKeyPressed(draw.KeyEscape) {
 				window.Close()
+				return
+			}
+
+			if window.WasKeyPressed(draw.KeyF2) {
+				restart()
 				return
 			}
 
