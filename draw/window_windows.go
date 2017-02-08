@@ -254,38 +254,19 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 func hideConsoleWindow() {
 	console := w32.GetConsoleWindow()
 	if console == 0 {
-		return
+		return // no console attached
 	}
-
+	// If this application is the process that created the console window, then
+	// this program was not compiled with the -H=windowsgui flag and on start-up
+	// it created a console along with the main application window. In this case
+	// hide the console window.
+	// See
+	// http://stackoverflow.com/questions/9009333/how-to-check-if-the-program-is-run-from-a-console
+	// and thanks to
+	// https://github.com/hajimehoshi
+	// for the tip.
 	_, consoleProcID := w32.GetWindowThreadProcessId(console)
-	if consoleProcID == 0 {
-		return
-	}
-
-	consoleProc := w32.OpenProcess(
-		w32.PROCESS_QUERY_INFORMATION,
-		false,
-		uint32(consoleProcID),
-	)
-	if consoleProc == 0 {
-		return
-	}
-
-	var creationTime, ignore w32.FILETIME
-	if !w32.GetProcessTimes(consoleProc, &creationTime, &ignore, &ignore, &ignore) {
-		return
-	}
-
-	now := w32.GetSystemTimeAsFileTime()
-	dt := now.ToUint64() - creationTime.ToUint64()
-	const ms = 10000
-	if dt < 1000*ms {
-		// Heuristic: if the console was active for a short period of time,
-		// it was probably popped up with the window after double clicking
-		// the executable and not the developer typing "go run ..." from the
-		// command line.
-		// In this case, hide the console as this is a user playing our
-		// game.
+	if w32.GetCurrentProcessId() == consoleProcID {
 		w32.ShowWindowAsync(console, w32.SW_HIDE)
 	}
 }
