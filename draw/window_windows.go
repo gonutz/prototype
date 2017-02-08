@@ -474,11 +474,57 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 }
 
 func (w *window) DrawEllipse(x, y, width, height int, color Color) {
-	w.ellipse(false, x, y, width, height, color)
+	outline := ellipseOutline(x, y, width, height)
+	if len(outline) == 0 {
+		return
+	}
+	data := make([]float32, len(outline)*7)
+	col := colorToFloat32(color)
+	for i := range outline {
+		j := i * 7
+		data[j+0] = float32(outline[i].x)
+		data[j+1] = float32(outline[i].y)
+		data[j+2] = 0
+		data[j+3] = 1
+		data[j+4] = col
+		data[j+5] = 0
+		data[j+6] = 0
+	}
+	if err := w.device.DrawPrimitiveUP(
+		d3d9.PT_POINTLIST,
+		uint(len(outline)),
+		unsafe.Pointer(&data[0]),
+		vertexStride,
+	); err != nil {
+		w.d3d9Error = err
+	}
 }
 
 func (w *window) FillEllipse(x, y, width, height int, color Color) {
-	w.ellipse(true, x, y, width, height, color)
+	area := ellipseArea(x, y, width, height)
+	if len(area) == 0 {
+		return
+	}
+	col := colorToFloat32(color)
+	data := make([]float32, len(area)*7)
+	for i := range area {
+		j := i * 7
+		data[j+0] = float32(area[i].x)
+		data[j+1] = float32(area[i].y)
+		data[j+2] = 0
+		data[j+3] = 1
+		data[j+4] = col
+		data[j+5] = 0
+		data[j+6] = 0
+	}
+	if err := w.device.DrawPrimitiveUP(
+		d3d9.PT_LINELIST,
+		uint(len(area)/2),
+		unsafe.Pointer(&data[0]),
+		vertexStride,
+	); err != nil {
+		w.d3d9Error = err
+	}
 }
 
 func (w *window) DrawImageFile(path string, x, y int) error {
@@ -773,76 +819,6 @@ func (w *window) renderImage(path string, x, y, width, height, degrees int) erro
 	}
 
 	return nil
-}
-
-func (w *window) ellipse(filled bool, x, y, width, height int, color Color) {
-	if width <= 0 || height <= 0 {
-		return
-	}
-
-	if width == 1 && height == 1 {
-		w.DrawPoint(x, y, color)
-		return
-	}
-
-	if width == 1 {
-		w.DrawLine(x, y, x, y+height-1, color)
-		return
-	}
-	if height == 1 {
-		w.DrawLine(x, y, x+width-1, y, color)
-		return
-	}
-
-	col := colorToFloat32(color)
-	var data []float32
-
-	if !filled {
-		width--
-		height--
-	}
-	a, b := float32(width)/2, float32(height)/2
-	fx, fy := float32(x)+a, float32(y)+b
-
-	var primitiveType d3d9.PRIMITIVETYPE
-	var pointCount uint
-	if filled {
-		fx -= 0.5
-		fy -= 0.5
-		a -= 0.25
-		b -= 0.25
-
-		primitiveType = d3d9.PT_TRIANGLEFAN
-		data = append(data, fx, fy, 0, 1, col, 0, 0)
-		pointCount++
-	} else {
-		primitiveType = d3d9.PT_LINESTRIP
-	}
-
-	const stepCount = 50
-	const dAngle = 2 * math.Pi / stepCount
-	for i, angle := 0, 0.0; i <= stepCount; i, angle = i+1, angle+dAngle {
-		sin, cos := math.Sincos(angle)
-		x, y := a*float32(cos), b*float32(sin)
-		data = append(data, fx+x, fy+y, 0, 1, col, 0, 0)
-		pointCount++
-	}
-
-	var primitiveCount uint
-	if filled {
-		primitiveCount = pointCount - 2
-	} else {
-		primitiveCount = pointCount - 1
-	}
-
-	if err := w.device.DrawPrimitiveUP(
-		primitiveType,
-		primitiveCount,
-		unsafe.Pointer(&data[0]),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
 }
 
 func rawInputToKey(kb C.RAWKEYBOARD) (key Key, down bool) {

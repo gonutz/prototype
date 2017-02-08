@@ -163,10 +163,8 @@ func (w *window) IsKeyDown(key Key) bool {
 
 func (w *window) DrawPoint(x, y int, color Color) {
 	gl.Begin(gl.POINTS)
-
 	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
-
 	gl.End()
 }
 
@@ -174,21 +172,12 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
 	}
-
 	gl.Begin(gl.QUADS)
-
 	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2i(int32(x), int32(y))
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2i(int32(x+width), int32(y))
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2i(int32(x+width), int32(y+height))
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2i(int32(x), int32(y+height))
-
 	gl.End()
 }
 
@@ -196,29 +185,17 @@ func (w *window) DrawRect(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
 	}
-
 	if width == 1 && height == 1 {
 		w.DrawPoint(x, y, color)
 		return
 	}
-
 	gl.Begin(gl.LINE_STRIP)
-
 	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x+width)-0.5, float32(y)+0.5)
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x+width)-0.5, float32(y+height)-0.5)
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x)+0.5, float32(y+height)-0.5)
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
-
 	gl.End()
 }
 
@@ -228,13 +205,9 @@ func (w *window) DrawLine(x, y, x2, y2 int, color Color) {
 		return
 	}
 	gl.Begin(gl.LINES)
-
 	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
-
-	gl.Color4f(color.R, color.G, color.B, color.A)
 	gl.Vertex2f(float32(x2+sign(x2-x))+0.5, float32(y2+sign(y2-y))+0.5)
-
 	gl.End()
 }
 
@@ -368,64 +341,29 @@ func toGlfwButton(b MouseButton) glfw.MouseButton {
 }
 
 func (w *window) DrawEllipse(x, y, width, height int, color Color) {
-	w.ellipse(false, x, y, width, height, color)
+	outline := ellipseOutline(x, y, width, height)
+	if len(outline) == 0 {
+		return
+	}
+	gl.Begin(gl.POINTS)
+	gl.Color4f(color.R, color.G, color.B, color.A)
+	for _, p := range outline {
+		gl.Vertex2f(float32(p.x)+0.5, float32(p.y)+0.5)
+	}
+	gl.End()
 }
 
 func (w *window) FillEllipse(x, y, width, height int, color Color) {
-	w.ellipse(true, x, y, width, height, color)
-}
-
-func (w *window) ellipse(filled bool, x, y, width, height int, color Color) {
-	if width <= 0 || height <= 0 {
+	area := ellipseArea(x, y, width, height)
+	if len(area) == 0 {
 		return
 	}
-
-	if width == 1 && height == 1 {
-		w.DrawPoint(x, y, color)
-		return
+	gl.Begin(gl.LINES)
+	gl.Color4f(color.R, color.G, color.B, color.A)
+	for i := 0; i < len(area); i += 2 {
+		gl.Vertex2f(float32(area[i].x)+0.5, float32(area[i].y)+0.5)
+		gl.Vertex2f(float32(area[i+1].x)+1.0, float32(area[i+1].y)+1.0)
 	}
-
-	if width == 1 {
-		w.DrawLine(x, y, x, y+height-1, color)
-		return
-	}
-	if height == 1 {
-		w.DrawLine(x, y, x+width-1, y, color)
-		return
-	}
-
-	if !filled {
-		width--
-		height--
-	}
-	a, b := float32(width)/2, float32(height)/2
-	fx, fy := float32(x)+a, float32(y)+b
-
-	if filled {
-		fx -= 0.5
-		fy -= 0.5
-		a -= 0.25
-		b -= 0.25
-
-		gl.Begin(gl.TRIANGLE_FAN)
-		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.Vertex2f(fx, fy)
-	} else {
-		// TODO this is all not quite right yet
-		//fx += 0.5
-		//fy += 0.5
-		gl.Begin(gl.LINE_STRIP)
-	}
-
-	const stepCount = 50
-	const dAngle = 2 * math.Pi / stepCount
-	for i, angle := 0, 0.0; i <= stepCount; i, angle = i+1, angle+dAngle {
-		sin, cos := math.Sincos(angle)
-		x, y := a*float32(cos), b*float32(sin)
-		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.Vertex2f(fx+x, fy+y)
-	}
-
 	gl.End()
 }
 
@@ -440,18 +378,16 @@ func (w *window) DrawImageFile(path string, x, y int) error {
 	gl.Begin(gl.QUADS)
 
 	gl.Color4f(1, 1, 1, 1)
+
 	gl.TexCoord2i(0, 0)
 	gl.Vertex2i(int32(x), int32(y))
 
-	gl.Color4f(1, 1, 1, 1)
 	gl.TexCoord2i(1, 0)
 	gl.Vertex2i(int32(x+tex.w), int32(y))
 
-	gl.Color4f(1, 1, 1, 1)
 	gl.TexCoord2i(1, 1)
 	gl.Vertex2i(int32(x+tex.w), int32(y+tex.h))
 
-	gl.Color4f(1, 1, 1, 1)
 	gl.TexCoord2i(0, 1)
 	gl.Vertex2i(int32(x), int32(y+tex.h))
 
@@ -480,7 +416,7 @@ func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 	cx, cy := x1+float32(w)/2, y1+float32(h)/2
 	sin, cos := math.Sincos(float64(degrees) / 180 * math.Pi)
 	sin32, cos32 := float32(sin), float32(cos)
-	p := [4]point{
+	p := [4]pointf{
 		{x1, y1},
 		{x2, y1},
 		{x2, y2},
@@ -518,7 +454,7 @@ func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 	return nil
 }
 
-type point struct{ x, y float32 }
+type pointf struct{ x, y float32 }
 
 func (win *window) GetTextSize(text string) (w, h int) {
 	return win.GetScaledTextSize(text, 1.0)

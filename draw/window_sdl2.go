@@ -4,7 +4,6 @@ package draw
 
 import (
 	"errors"
-	"math"
 	"runtime"
 	"strings"
 	"sync"
@@ -233,15 +232,19 @@ func (w *window) Close() {
 }
 
 func (w *window) DrawEllipse(x, y, width, height int, color Color) {
-	points := ellipsePoints(x, y, width, height)
-	if len(points) > 0 {
+	outline := ellipseOutline(x, y, width, height)
+	if len(outline) > 0 {
 		w.setColor(color)
-		w.renderer.DrawPoints(makeSDLpoints(points))
+		w.renderer.DrawPoints(makeSDLpoints(outline))
 	}
 }
 
 func (w *window) FillEllipse(x, y, width, height int, color Color) {
-	points := ellipsePoints(x, y, width, height)
+	if width == 1 && height == 1 {
+		w.DrawPoint(x, y, color)
+		return
+	}
+	points := ellipseArea(x, y, width, height)
 	if len(points) > 0 {
 		w.setColor(color)
 		w.renderer.DrawLines(makeSDLpoints(points))
@@ -256,62 +259,6 @@ func makeSDLpoints(from []point) []sdl.Point {
 	}
 	return p
 }
-
-func ellipsePoints(left, top, width, height int) []point {
-	if width <= 0 || height <= 0 {
-		return nil
-	}
-
-	if height > width {
-		return flipPoints(ellipsePoints(top, left, height, width))
-	}
-
-	var points []point
-	a := float64(width) / 2.0
-	b := float64(height) / 2.0
-	bSquare := b * b
-	bSquareOverASquare := bSquare / (a * a)
-	yOf := func(x float64) float64 {
-		square := bSquare - x*x*bSquareOverASquare
-		if square <= 0.0 {
-			return 0.0
-		}
-		return math.Sqrt(square)
-	}
-	round := func(x float64) int { return int(x + 0.49) }
-	startX := 0.0
-	if width%2 == 0 {
-		startX = 0.5
-	}
-	endX := a + 1.1
-	lastY := round(yOf(startX))
-	for x := startX; x < endX; x += 1.0 {
-		ix := int(x)
-		iy := round(yOf(x))
-		for y := lastY; y != iy; y-- {
-			points = append(points, point{ix, y})
-		}
-		points = append(points, point{ix, iy})
-		lastY = iy
-	}
-	all := make([]point, len(points)*4)
-	for i, p := range points {
-		all[i*4+0] = point{p.x + left + width/2, p.y + top + height/2}
-		all[i*4+1] = point{-p.x + left + width/2, p.y + top + height/2}
-		all[i*4+2] = point{p.x + left + width/2, -p.y + top + height/2}
-		all[i*4+3] = point{-p.x + left + width/2, -p.y + top + height/2}
-	}
-	return all
-}
-
-func flipPoints(points []point) []point {
-	for i, p := range points {
-		points[i].x, points[i].y = p.y, p.x
-	}
-	return points
-}
-
-type point struct{ x, y int }
 
 func (w *window) DrawPoint(x, y int, color Color) {
 	w.setColor(color)
