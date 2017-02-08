@@ -517,6 +517,11 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 		data[j+5] = 0
 		data[j+6] = 0
 	}
+	// now offset every right point in each line by +0.5, otherwise they might
+	// not be fully visible
+	for i := 8; i < len(data); i += 14 {
+		data[i-1] += 0.5
+	}
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		uint(len(area)/2),
