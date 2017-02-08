@@ -272,19 +272,21 @@ func hideConsoleWindow() {
 	}
 
 	var creationTime, ignore w32.FILETIME
-	if w32.GetProcessTimes(consoleProc, &creationTime, &ignore, &ignore, &ignore) {
-		now := w32.GetSystemTimeAsFileTime()
-		dt := now.ToUint64() - creationTime.ToUint64()
-		const oneSecond = 1000 * 1000
-		if dt < oneSecond {
-			// Heuristic: if the console was active for a short period of time,
-			// it was probably popped up with the window after double clicking
-			// the executable and not the developer typing "go run ..." from the
-			// command line.
-			// In this case, hide the console as this is a user playing our
-			// game.
-			w32.ShowWindowAsync(console, w32.SW_HIDE)
-		}
+	if !w32.GetProcessTimes(consoleProc, &creationTime, &ignore, &ignore, &ignore) {
+		return
+	}
+
+	now := w32.GetSystemTimeAsFileTime()
+	dt := now.ToUint64() - creationTime.ToUint64()
+	const ms = 10000
+	if dt < 1000*ms {
+		// Heuristic: if the console was active for a short period of time,
+		// it was probably popped up with the window after double clicking
+		// the executable and not the developer typing "go run ..." from the
+		// command line.
+		// In this case, hide the console as this is a user playing our
+		// game.
+		w32.ShowWindowAsync(console, w32.SW_HIDE)
 	}
 }
 
