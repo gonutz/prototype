@@ -51,7 +51,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	glfw.WindowHint(glfw.ContextVersionMinor, 0)
 	glfw.WindowHint(glfw.Resizable, glfw.False)
 
-	win, err := glfw.CreateWindow(width, height, title+" (GLFW)", nil, nil)
+	win, err := glfw.CreateWindow(width, height, title, nil, nil)
 	if err != nil {
 		return err
 	}

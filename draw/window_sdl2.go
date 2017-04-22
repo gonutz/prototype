@@ -58,7 +58,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	defer sdlWindow.Destroy()
 	defer renderer.Destroy()
-	sdlWindow.SetTitle(title + " (SDL2)")
+	sdlWindow.SetTitle(title)
 	renderer.SetDrawBlendMode(sdl.BLENDMODE_BLEND)
 
 	if err := mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 1, 512); err != nil {

@@ -155,7 +155,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return errors.New("CreateWindowEx failed")
 	}
 	globalWindow.handle = window
-	w32.SetWindowText(window, title+" (D3D9)")
+	w32.SetWindowText(window, title)
 
 	// hide the console window if double-clicking on the executable
 	hideConsoleWindow()
