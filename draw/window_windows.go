@@ -2,39 +2,6 @@
 
 package draw
 
-/*
-#cgo CFLAGS: -DUNICODE -DWINVER=0x500
-#include <Windows.h>
-
-RAWKEYBOARD getRawKeyBoard(LPARAM lParam, int* valid) {
-	*valid = 0;
-	char buffer[sizeof(RAWINPUT)] = {};
-	UINT size = sizeof(RAWINPUT);
-	GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buffer, &size, sizeof(RAWINPUTHEADER));
-
-	// extract keyboard raw input data
-	RAWINPUT* raw = (RAWINPUT*)buffer;
-	if (raw->header.dwType == RIM_TYPEKEYBOARD)
-	{
-		*valid = 1;
-		return raw->data.keyboard;
-	}
-}
-
-void enableRawKeyboardInput(void* window) {
-	RAWINPUTDEVICE inputDevice;
-	inputDevice.usUsagePage = 0x01;
-	inputDevice.usUsage = 0x06;
-	inputDevice.dwFlags = 0;
-	inputDevice.hwndTarget = (HWND)window;
-
-	// NOTE Go 1.6 panics when doing this in Go because the window pointer will
-	// be included in the C struct.
-	RegisterRawInputDevices(&inputDevice, 1, sizeof(RAWINPUTDEVICE));
-}
-*/
-import "C"
-
 import (
 	"bytes"
 	"errors"
@@ -97,11 +64,6 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	defer mixer.Close()
 
-	if err := d3d9.Init(); err != nil {
-		return err
-	}
-	defer d3d9.Close()
-
 	d3d, err := d3d9.Create(d3d9.SDK_VERSION)
 	if err != nil {
 		return err
@@ -115,7 +77,6 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 
 	class := w32.WNDCLASSEX{
-		Size:      C.sizeof_WNDCLASSEX,
 		WndProc:   syscall.NewCallback(handleMessage),
 		Cursor:    w32.LoadCursor(0, (*uint16)(unsafe.Pointer(uintptr(w32.IDC_ARROW)))),
 		ClassName: syscall.StringToUTF16Ptr("GoPrototypeWindowClass"),
@@ -160,20 +121,27 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// hide the console window if double-clicking on the executable
 	hideConsoleWindow()
 
-	// raw keyboard input allows us to handle keys like shift/control/alt
-	C.enableRawKeyboardInput(unsafe.Pointer(window))
+	// enable raw keyboard input which allows us to handle keys like
+	// shift/control/alt
+	if !w32.RegisterRawInputDevices(w32.RAWINPUTDEVICE{
+		UsagePage: 0x01,
+		Usage:     0x06,
+		Target:    window,
+	}) {
+		return errors.New("RegisterRawInputDevices failed")
+	}
 
 	device, _, err := d3d.CreateDevice(
 		d3d9.ADAPTER_DEFAULT,
 		d3d9.DEVTYPE_HAL,
-		unsafe.Pointer(window),
+		d3d9.HWND(window),
 		d3d9.CREATE_SOFTWARE_VERTEXPROCESSING,
 		d3d9.PRESENT_PARAMETERS{
 			BackBufferFormat:     d3d9.FMT_UNKNOWN, // use current display format
 			BackBufferCount:      1,
-			Windowed:             true,
+			Windowed:             1,
 			SwapEffect:           d3d9.SWAPEFFECT_DISCARD,
-			HDeviceWindow:        unsafe.Pointer(window),
+			HDeviceWindow:        d3d9.HWND(window),
 			PresentationInterval: d3d9.PRESENT_INTERVAL_ONE, // enable VSyncx
 		},
 	)
@@ -231,7 +199,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			if err := device.EndScene(); err != nil {
 				return err
 			}
-			if err := device.Present(nil, nil, nil, nil); err != nil {
+			if err := device.Present(nil, nil, 0, nil); err != nil {
 				return err
 			}
 
@@ -273,7 +241,7 @@ func hideConsoleWindow() {
 
 type window struct {
 	handle    w32.HWND
-	device    d3d9.Device
+	device    *d3d9.Device
 	d3d9Error d3d9.Error
 	running   bool
 	mouse     struct{ x, y int }
@@ -289,13 +257,14 @@ type window struct {
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 	switch msg {
 	case w32.WM_INPUT:
-		var valid C.int
-		kb := C.getRawKeyBoard(C.LPARAM(l), &valid)
-		if valid == 0 {
+		raw, ok := w32.GetRawInputData(w32.HRAWINPUT(l), w32.RID_INPUT)
+		if !ok {
 			return 1
 		}
-
-		key, down := rawInputToKey(kb)
+		if raw.Header.Type != w32.RIM_TYPEKEYBOARD {
+			return 1
+		}
+		key, down := rawInputToKey(raw.GetKeyboard())
 		if key != 0 {
 			globalWindow.keyDown[key] = down
 			if down {
@@ -390,7 +359,7 @@ func (w *window) DrawPoint(x, y int, color Color) {
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_POINTLIST,
 		1,
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
@@ -413,7 +382,7 @@ func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		1,
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
@@ -449,7 +418,7 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
@@ -476,7 +445,7 @@ func (w *window) DrawEllipse(x, y, width, height int, color Color) {
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_POINTLIST,
 		uint(len(outline)),
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
@@ -508,7 +477,7 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		uint(len(area)/2),
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
@@ -595,7 +564,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		destX += width
 	}
 
-	if err := w.device.SetTexture(0, texture.texture.BaseTexture); err != nil {
+	if err := w.device.SetTexture(0, texture.texture); err != nil {
 		w.d3d9Error = err
 		return
 	}
@@ -603,14 +572,14 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLELIST,
 		charCount*2,
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
 	}
 
 	// reset the texture
-	if err := w.device.SetTexture(0, d3d9.BaseTexture{}); err != nil {
+	if err := w.device.SetTexture(0, nil); err != nil {
 		w.d3d9Error = err
 	}
 }
@@ -720,7 +689,7 @@ func (w *window) createTexture(path string, img image.Image) error {
 		0,
 		d3d9.FMT_A8R8G8B8,
 		d3d9.POOL_MANAGED,
-		nil,
+		0,
 	)
 	if err != nil {
 		return err
@@ -745,7 +714,7 @@ func (w *window) createTexture(path string, img image.Image) error {
 }
 
 type sizedTexture struct {
-	texture       d3d9.Texture
+	texture       *d3d9.Texture
 	width, height int
 }
 
@@ -765,7 +734,7 @@ func (w *window) renderImage(path string, x, y, width, height, degrees int) erro
 		width, height = texture.width, texture.height
 	}
 
-	if err := w.device.SetTexture(0, texture.texture.BaseTexture); err != nil {
+	if err := w.device.SetTexture(0, texture.texture); err != nil {
 		return err
 	}
 
@@ -795,111 +764,114 @@ func (w *window) renderImage(path string, x, y, width, height, degrees int) erro
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
-		unsafe.Pointer(&data[0]),
+		uintptr(unsafe.Pointer(&data[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
 	}
 
 	// reset the texture
-	if err := w.device.SetTexture(0, d3d9.BaseTexture{}); err != nil {
+	if err := w.device.SetTexture(0, nil); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func rawInputToKey(kb C.RAWKEYBOARD) (key Key, down bool) {
-	virtualKey := C.USHORT(kb.VKey)
-	scanCode := C.USHORT(kb.MakeCode)
+func rawInputToKey(kb w32.RAWKEYBOARD) (key Key, down bool) {
+	virtualKey := kb.VKey
+	scanCode := kb.MakeCode
 	flags := kb.Flags
 
-	down = flags&C.RI_KEY_BREAK == 0
+	down = flags&w32.RI_KEY_BREAK == 0
 
 	if virtualKey == 255 {
 		// discard "fake keys" which are part of an escaped sequence
 		return 0, down
-	} else if virtualKey == C.VK_SHIFT {
-		virtualKey = C.USHORT(C.MapVirtualKey(
-			C.UINT(scanCode),
-			C.MAPVK_VSC_TO_VK_EX,
+	} else if virtualKey == w32.VK_SHIFT {
+		virtualKey = uint16(w32.MapVirtualKey(
+			uint(scanCode),
+			w32.MAPVK_VSC_TO_VK_EX,
 		))
-	} else if virtualKey == C.VK_NUMLOCK {
+	} else if virtualKey == w32.VK_NUMLOCK {
 		// correct PAUSE/BREAK and NUM LOCK silliness, and set the extended
 		// bit
-		scanCode = C.USHORT(C.MapVirtualKey(
-			C.UINT(virtualKey),
-			C.MAPVK_VK_TO_VSC,
+		scanCode = uint16(w32.MapVirtualKey(
+			uint(virtualKey),
+			w32.MAPVK_VK_TO_VSC,
 		) | 0x100)
 	}
 
-	isE0 := (flags & C.RI_KEY_E0) != 0
-	isE1 := (flags & C.RI_KEY_E1) != 0
+	isE0 := (flags & w32.RI_KEY_E0) != 0
+	isE1 := (flags & w32.RI_KEY_E1) != 0
 
 	if isE1 {
 		// for escaped sequences, turn the virtual key into the correct scan code using MapVirtualKey.
 		// however, MapVirtualKey is unable to map VK_PAUSE (this is a known bug), hence we map that by hand.
-		if virtualKey == C.VK_PAUSE {
+		if virtualKey == w32.VK_PAUSE {
 			scanCode = 0x45
 		} else {
-			scanCode = C.USHORT(C.MapVirtualKey(C.UINT(virtualKey), C.MAPVK_VK_TO_VSC))
+			scanCode = uint16(w32.MapVirtualKey(
+				uint(virtualKey),
+				w32.MAPVK_VK_TO_VSC,
+			))
 		}
 	}
 
 	switch virtualKey {
-	case C.VK_CONTROL:
+	case w32.VK_CONTROL:
 		if isE0 {
 			return KeyRightControl, down
 		} else {
 			return KeyLeftControl, down
 		}
-	case C.VK_MENU:
+	case w32.VK_MENU:
 		if isE0 {
 			return KeyRightAlt, down
 		} else {
 			return KeyLeftAlt, down
 		}
-	case C.VK_RETURN:
+	case w32.VK_RETURN:
 		if isE0 {
 			return KeyNumEnter, down
 		}
-	case C.VK_INSERT:
+	case w32.VK_INSERT:
 		if !isE0 {
 			return KeyNum0, down
 		}
-	case C.VK_HOME:
+	case w32.VK_HOME:
 		if !isE0 {
 			return KeyNum7, down
 		}
-	case C.VK_END:
+	case w32.VK_END:
 		if !isE0 {
 			return KeyNum1, down
 		}
-	case C.VK_PRIOR:
+	case w32.VK_PRIOR:
 		if !isE0 {
 			return KeyNum9, down
 		}
-	case C.VK_NEXT:
+	case w32.VK_NEXT:
 		if !isE0 {
 			return KeyNum3, down
 		}
-	case C.VK_LEFT:
+	case w32.VK_LEFT:
 		if !isE0 {
 			return KeyNum4, down
 		}
-	case C.VK_RIGHT:
+	case w32.VK_RIGHT:
 		if !isE0 {
 			return KeyNum6, down
 		}
-	case C.VK_UP:
+	case w32.VK_UP:
 		if !isE0 {
 			return KeyNum8, down
 		}
-	case C.VK_DOWN:
+	case w32.VK_DOWN:
 		if !isE0 {
 			return KeyNum2, down
 		}
-	case C.VK_CLEAR:
+	case w32.VK_CLEAR:
 		if !isE0 {
 			return KeyNum5, down
 		}
