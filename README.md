@@ -10,7 +10,7 @@ First you need to install the Go programming language from [this link](https://g
 
 You of course also need git (for Windows, get it from [here](https://git-scm.com/downloads)).
 
-If you use Linux or OS X you need a C comiler installed. On Windows, this is not necessary. If you are on Linux you probably already have GCC installed.
+If you use Linux or OS X you need a C compiler installed. On Windows, this is not necessary. If you are on Linux you probably already have GCC installed.
 
 After installing all the tools you are ready to install this library and finally start prototyping. From the command line run:
 
