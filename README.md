@@ -3,6 +3,8 @@ prototype
 
 Simply prototype 2D games using an easy, minimal interface that lets you draw simple primitives and images on the screen, easily handle mouse and keyboard events and play sounds.
 
+![Games](https://github.com/gonutz/prototype/blob/master/samples/screenshots/games.png)
+
 Installation
 ------------
 
