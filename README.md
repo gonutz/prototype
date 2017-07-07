@@ -10,7 +10,7 @@ First you need to install the Go programming language from [this link](https://g
 
 You of course also need git (for Windows, get it from [here](https://git-scm.com/downloads)).
 
-Because this library uses C libraries you also need a working C compiler. If you are on Linux you probably already have GCC installed. For Windows you can use [MinGW](http://sourceforge.net/projects/mingw/files/latest/download?source=files). After downloading, run the installer and follow the instructions until you get to the "MinGW Installation Manager". Put a check mark on the following components: *mingw-developer-toolkit*, *mingw32-base*, *mingw-gcc-g++* and *msys-base*. In the "Installation" menu click "Apply Changes" and wait for it to finish. Then append the tools directories (they default to *C:\MinGW\bin* and *C:\MinGW\msys\1.0\bin*) to your PATH environment variable. See the instructions from the Go installation page for how to edit your environment variables.
+If you use Linux or OS X you need a C comiler installed. On Windows, this is not necessary. If you are on Linux you probably already have GCC installed.
 
 After installing all the tools you are ready to install this library and finally start prototyping. From the command line run:
 
