@@ -16,9 +16,9 @@ If you use Linux or OS X you need a C compiler installed. On Windows, this is no
 
 After installing all the tools you are ready to install this library and finally start prototyping. From the command line run:
 
-	go get github.com/gonutz/prototype/draw
+	go get github.com/gonutz/prototype/...
 
-This will install and build the library.
+This will install and build the library and also the sample games.
 
 Documentation
 -------------
