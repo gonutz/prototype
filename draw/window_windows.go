@@ -539,17 +539,20 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	destX, destY := x, y
 	var charCount uint
 
-	for _, char := range []byte(text) {
-		if char == '\n' {
+	for _, r := range text {
+		if r == '\n' {
 			destX = x
 			destY += height
 			continue
 		}
+		if r < 0 || r >= 128 {
+			r = '?'
+		}
 
 		charCount++
 
-		u := float32(char%16) / 16
-		v := float32(char/16) / 16
+		u := float32(r%16) / 16
+		v := float32(r/16) / 16
 
 		data = append(data,
 			float32(destX)-0.5, float32(destY)-0.5, 0, 1, col, u, v,

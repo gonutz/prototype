@@ -507,14 +507,18 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	gl.BindTexture(gl.TEXTURE_2D, fontTexture.id)
 
 	gl.Begin(gl.QUADS)
-	for _, char := range []byte(text) {
-		if char == '\n' {
+	for _, r := range text {
+		if r == '\n' {
 			destX = int32(x)
 			destY += height
 			continue
 		}
-		srcX = float32(int(char)%16) / 16
-		srcY = float32(int(char)/16) / 16
+		if r < 0 || r >= 128 {
+			r = '?'
+		}
+
+		srcX = float32(r%16) / 16
+		srcY = float32(r/16) / 16
 
 		gl.Color4f(color.R, color.G, color.B, color.A)
 		gl.TexCoord2f(srcX, srcY)

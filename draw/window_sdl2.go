@@ -429,14 +429,17 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	dest.H = int32(float32(dest.H)*scale + 0.5)
 	dest.X = int32(x)
 	dest.Y = int32(y)
-	for _, char := range []byte(text) {
-		if char == '\n' {
+	for _, r := range text {
+		if r == '\n' {
 			dest.X = int32(x)
 			dest.Y += dest.H
 			continue
 		}
-		src.X = int32((int(char) % 16)) * width
-		src.Y = int32((int(char) / 16)) * height
+		if r < 0 || r >= 128 {
+			r = '?'
+		}
+		src.X = int32(r%16) * width
+		src.Y = int32(r/16) * height
 		w.renderer.Copy(w.fontTexture, &src, &dest)
 		dest.X += dest.W
 	}
