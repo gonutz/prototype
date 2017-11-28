@@ -31,7 +31,11 @@ Example
 ```Go
 package main
 
-import "github.com/gonutz/prototype/draw"
+import (
+	"math"
+
+	"github.com/gonutz/prototype/draw"
+)
 
 func main() {
 	draw.RunWindow("Title", 640, 480, update)
@@ -43,9 +47,17 @@ func update(window draw.Window) {
 	centerX, centerY := w/2, h/2
 
 	// draw a button in the center of the screen
-	window.FillEllipse(centerX-20, centerY-20, 40, 40, draw.DarkRed)
+	mouseX, mouseY := window.MousePosition()
+	mouseInCircle := math.Hypot(float64(mouseX-centerX), float64(mouseY-centerY)) < 20
+	color := draw.DarkRed
+	if mouseInCircle {
+		color = draw.Red
+	}
+	window.FillEllipse(centerX-20, centerY-20, 40, 40, color)
 	window.DrawEllipse(centerX-20, centerY-20, 40, 40, draw.White)
-	window.DrawScaledText("Close!", centerX-40, centerY+25, 1.6, draw.Green)
+	if mouseInCircle {
+		window.DrawScaledText("Close!", centerX-40, centerY+25, 1.6, draw.Green)
+	}
 
 	// check all mouse clicks that happened during this frame
 	for _, click := range window.Clicks() {
@@ -59,4 +71,4 @@ func update(window draw.Window) {
 }
 ```
 	
-This example displays a resizable window with a round button in the middle to close it. It demonstrates some basic drawing and event handling code.
+This example displays a window with a round button in the middle to close it. It demonstrates some basic drawing and event handling code.
