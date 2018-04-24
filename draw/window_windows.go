@@ -97,11 +97,30 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		height = int(windowSize.Bottom - windowSize.Top)
 	}
 
+	// find the first monitor that is large enough to fit the window, if none is
+	// found we just use the default monitor
+	var selectedMonitor uint = d3d9.ADAPTER_DEFAULT
+	monitorCount := d3d.GetAdapterCount()
+	for i := uint(0); i < monitorCount; i++ {
+		mode, err := d3d.GetAdapterDisplayMode(i)
+		if err == nil && int(mode.Width) >= width && int(mode.Height) >= height {
+			selectedMonitor = i
+			break
+		}
+	}
+	// center the window in the monitor, if any of these functions fail, x,y
+	// will simply be 0,0 which is fine in that case
 	var x, y int
-	mode, err := d3d.GetAdapterDisplayMode(d3d9.ADAPTER_DEFAULT)
+	mode, err := d3d.GetAdapterDisplayMode(selectedMonitor)
 	if err == nil {
-		x = int(mode.Width/2) - width/2
-		y = int(mode.Height/2) - height/2
+		monitor := d3d.GetAdapterMonitor(selectedMonitor)
+		if monitor != 0 {
+			var info w32.MONITORINFO
+			if w32.GetMonitorInfo(w32.HMONITOR(monitor), &info) {
+				x = int(info.RcMonitor.Left) + int(mode.Width/2) - width/2
+				y = int(info.RcMonitor.Top) + int(mode.Height/2) - height/2
+			}
+		}
 	}
 
 	window := w32.CreateWindowEx(
