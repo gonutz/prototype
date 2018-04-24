@@ -111,8 +111,12 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// center the window in the monitor, if any of these functions fail, x,y
 	// will simply be 0,0 which is fine in that case
 	var x, y int
+	refreshRate := 60 // default to 60 Hz in case we cannot query the monitor
 	mode, err := d3d.GetAdapterDisplayMode(selectedMonitor)
 	if err == nil {
+		if mode.RefreshRate != 0 { // 0 is some invalid default value
+			refreshRate = int(mode.RefreshRate)
+		}
 		monitor := d3d.GetAdapterMonitor(selectedMonitor)
 		if monitor != 0 {
 			var info w32.MONITORINFO
@@ -161,7 +165,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			Windowed:             1,
 			SwapEffect:           d3d9.SWAPEFFECT_DISCARD,
 			HDeviceWindow:        d3d9.HWND(window),
-			PresentationInterval: d3d9.PRESENT_INTERVAL_ONE, // enable VSyncx
+			PresentationInterval: d3d9.PRESENT_INTERVAL_ONE, // enable VSync
 		},
 	)
 	if err != nil {
@@ -196,6 +200,22 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return err
 	}
 
+	// we want to update the game with 60 Hz, if the monitor has e.g. 120 Hz, we
+	// need to update every other vsync, in case of 30 Hz we need to update
+	// twice per vsync
+	if 58 <= refreshRate && refreshRate <= 62 {
+		// close enough, treat it like the 60 Hz that we want
+		refreshRate = 60
+	}
+	updatesPerVsync := 60.0 / float32(refreshRate)
+	nextUpdate := updatesPerVsync
+
+	// TODO right now we just assume that the refresh setting the DX9 gives us
+	// is correct but maybe the user changed some driver setting that we do not
+	// know of; in this case the actual refresh rate might be different from
+	// what D3D9 reports; we could measure some frames and estimate the actual
+	// refresh rate, then compensate for it
+
 	var msg w32.MSG
 	w32.PeekMessage(&msg, 0, 0, 0, w32.PM_NOREMOVE)
 	for msg.Message != w32.WM_QUIT && globalWindow.running {
@@ -203,14 +223,20 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			w32.TranslateMessage(&msg)
 			w32.DispatchMessage(&msg)
 		} else {
-			if err := device.Clear(nil, d3d9.CLEAR_TARGET, 0, 0, 0); err != nil {
-				return err
-			}
 			if err := device.BeginScene(); err != nil {
 				return err
 			}
 
-			update(globalWindow)
+			var wasUpdated bool
+			for nextUpdate > 0 {
+				// clear the screen to black before the update
+				globalWindow.FillRect(0, 0, width, height, Black)
+				update(globalWindow)
+				wasUpdated = true
+				nextUpdate -= 1
+			}
+			nextUpdate += updatesPerVsync
+
 			if globalWindow.d3d9Error != nil {
 				return globalWindow.d3d9Error
 			}
@@ -222,11 +248,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 				return err
 			}
 
-			globalWindow.finishFrame()
-			// TODO check that VSync is active by measuring if one of the first
-			// couple frames is much quicker than 1000/60 ms and if so => do a
-			// sleep between frames
-			//time.Sleep(1000 / 60 * time.Millisecond)
+			if wasUpdated {
+				globalWindow.finishFrame()
+			}
 		}
 	}
 
