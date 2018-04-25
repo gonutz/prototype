@@ -59,10 +59,11 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return err
 	}
 
-	if err := mixer.Init(); err != nil {
-		return err
+	soundOn := false
+	if err := mixer.Init(); err == nil {
+		soundOn = true
+		defer mixer.Close()
 	}
-	defer mixer.Close()
 
 	d3d, err := d3d9.Create(d3d9.SDK_VERSION)
 	if err != nil {
@@ -72,6 +73,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	globalWindow = &window{
 		running:  true,
+		soundOn:  soundOn,
 		sounds:   make(map[string]mixer.SoundSource),
 		textures: make(map[string]sizedTexture),
 	}
@@ -292,6 +294,7 @@ type window struct {
 	mouseDown [mouseButtonCount]bool
 	pressed   []Key
 	clicks    []MouseClick
+	soundOn   bool
 	sounds    map[string]mixer.SoundSource
 	text      string
 	textures  map[string]sizedTexture
@@ -631,6 +634,9 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 }
 
 func (w *window) PlaySoundFile(path string) error {
+	if !w.soundOn {
+		return errors.New("sound mixer could not be initialized")
+	}
 	source, ok := w.sounds[path]
 	if !ok {
 		wave, err := wav.LoadFromFile(path)
