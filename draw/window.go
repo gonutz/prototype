@@ -92,7 +92,7 @@ type Window interface {
 	// GetTextSize returns the size the given text would have when being drawn.
 	GetTextSize(text string) (w, h int)
 
-	// GetScaledTextSize returns the size the given text would have when begin
+	// GetScaledTextSize returns the size the given text would have when being
 	// drawn at the given scale.
 	GetScaledTextSize(text string, scale float32) (w, h int)
 
