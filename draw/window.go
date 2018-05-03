@@ -89,7 +89,7 @@ type Window interface {
 	// returned.
 	DrawImageFileRotated(path string, x, y, degrees int) error
 
-	// GetTextSize returns the size the given text would have when begin drawn.
+	// GetTextSize returns the size the given text would have when being drawn.
 	GetTextSize(text string) (w, h int)
 
 	// GetScaledTextSize returns the size the given text would have when begin
