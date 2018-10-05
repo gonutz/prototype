@@ -551,10 +551,6 @@ func (win *window) GetTextSize(text string) (w, h int) {
 }
 
 func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
-	if len(text) == 0 || scale <= 0 {
-		return 0, 0
-	}
-
 	charW := int(float32(fontCharW)*scale + 0.5)
 	charH := int(float32(fontCharH)*scale + 0.5)
 

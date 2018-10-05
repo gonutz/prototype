@@ -461,9 +461,6 @@ func (win *window) GetTextSize(text string) (w, h int) {
 }
 
 func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
-	if len(text) == 0 {
-		return 0, 0
-	}
 	fontTexture, ok := win.textures[fontTextureID]
 	if !ok {
 		return 0, 0
