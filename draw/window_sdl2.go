@@ -404,8 +404,9 @@ func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
 	lines := strings.Split(text, "\n")
 	maxLineW := 0
 	for _, line := range lines {
-		if len(line) > maxLineW {
-			maxLineW = len(line)
+		w := utf8.RuneCountInString(line)
+		if w > maxLineW {
+			maxLineW = w
 		}
 	}
 	return w * maxLineW, h * len(lines)
@@ -432,9 +433,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 			dest.Y += dest.H
 			continue
 		}
-		if r < 0 || r >= 128 {
-			r = '?'
-		}
+		r = runeToFont(r)
 		src.X = int32(r%16) * width
 		src.Y = int32(r/16) * height
 		w.renderer.Copy(w.fontTexture, &src, &dest)

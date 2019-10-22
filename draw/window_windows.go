@@ -15,6 +15,7 @@ import (
 	"sync"
 	"syscall"
 	"unicode/utf16"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/gonutz/d3d9"
@@ -557,8 +558,9 @@ func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
 	lines := strings.Split(text, "\n")
 	maxLineW := 0
 	for _, line := range lines {
-		if len(line) > maxLineW {
-			maxLineW = len(line)
+		w := utf8.RuneCountInString(line)
+		if w > maxLineW {
+			maxLineW = w
 		}
 	}
 	return charW * maxLineW, charH * len(lines)
@@ -587,9 +589,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 			destY += height
 			continue
 		}
-		if r < 0 || r >= 128 {
-			r = '?'
-		}
+		r = runeToFont(r)
 
 		charCount++
 
