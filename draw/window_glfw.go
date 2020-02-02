@@ -7,7 +7,7 @@ import (
 	"errors"
 	"image"
 	"image/draw"
-	_ "image/png"
+	_ "image/png" // We allow loading PNGs by default.
 	"io"
 	"math"
 	"os"
@@ -121,8 +121,8 @@ func (w *window) Close() {
 	w.running = false
 }
 
-func (c *window) Size() (int, int) {
-	return int(c.width + 0.5), int(c.height + 0.5)
+func (w *window) Size() (int, int) {
+	return int(w.width + 0.5), int(w.height + 0.5)
 }
 
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
@@ -302,11 +302,11 @@ func (w *window) Characters() string {
 	return string(w.typed)
 }
 
-func (win *window) mouseButtonEvent(w *glfw.Window, button glfw.MouseButton, action glfw.Action, mod glfw.ModifierKey) {
+func (w *window) mouseButtonEvent(win *glfw.Window, button glfw.MouseButton, action glfw.Action, mod glfw.ModifierKey) {
 	if action == glfw.Press {
 		b := toMouseButton(button)
-		x, y := win.window.GetCursorPos()
-		win.clicks = append(win.clicks, MouseClick{X: int(x), Y: int(y), Button: b})
+		x, y := w.window.GetCursorPos()
+		w.clicks = append(w.clicks, MouseClick{X: int(x), Y: int(y), Button: b})
 	}
 }
 
@@ -397,23 +397,23 @@ func (w *window) DrawImageFile(path string, x, y int) error {
 	return nil
 }
 
-func (win *window) DrawImageFileRotated(path string, x, y, degrees int) error {
-	return win.DrawImageFileTo(path, x, y, -1, -1, degrees)
+func (w *window) DrawImageFileRotated(path string, x, y, degrees int) error {
+	return w.DrawImageFileTo(path, x, y, -1, -1, degrees)
 }
 
-func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
-	tex, err := win.getOrLoadTexture(path)
+func (w *window) DrawImageFileTo(path string, x, y, width, height, degrees int) error {
+	tex, err := w.getOrLoadTexture(path)
 	if err != nil {
 		return err
 	}
 
-	if w == -1 && h == -1 {
-		w, h = tex.w, tex.h
+	if width == -1 && height == -1 {
+		width, height = tex.w, tex.h
 	}
 
 	x1, y1 := float32(x), float32(y)
-	x2, y2 := float32(x+w-0), float32(y+h-0)
-	cx, cy := x1+float32(w)/2, y1+float32(h)/2
+	x2, y2 := float32(x+wwidth-0), float32(y+height-0)
+	cx, cy := x1+float32(width)/2, y1+float32(height)/2
 	sin, cos := math.Sincos(float64(degrees) / 180 * math.Pi)
 	sin32, cos32 := float32(sin), float32(cos)
 	p := [4]pointf{
@@ -456,17 +456,17 @@ func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 
 type pointf struct{ x, y float32 }
 
-func (win *window) GetTextSize(text string) (w, h int) {
-	return win.GetScaledTextSize(text, 1.0)
+func (w *window) GetTextSize(text string) (width, height int) {
+	return w.GetScaledTextSize(text, 1.0)
 }
 
-func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
-	fontTexture, ok := win.textures[fontTextureID]
+func (w *window) GetScaledTextSize(text string, scale float32) (width, height int) {
+	fontTexture, ok := w.textures[fontTextureID]
 	if !ok {
 		return 0, 0
 	}
-	w = int(float32(fontTexture.w/16)*scale + 0.5)
-	h = int(float32(fontTexture.h/16)*scale + 0.5)
+	width = int(float32(fontTexture.w/16)*scale + 0.5)
+	height = int(float32(fontTexture.h/16)*scale + 0.5)
 	lines := strings.Split(text, "\n")
 	maxLineW := 0
 	for _, line := range lines {
@@ -475,7 +475,7 @@ func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
 			maxLineW = w
 		}
 	}
-	return w * maxLineW, h * len(lines)
+	return width * maxLineW, height * len(lines)
 }
 
 func (w *window) DrawText(text string, x, y int, color Color) {
