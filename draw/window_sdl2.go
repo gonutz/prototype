@@ -136,7 +136,7 @@ func (w *window) runMainLoop() {
 
 		now := time.Now()
 		if now.Sub(lastUpdateTime).Seconds() > updateInterval {
-			// clear backgroud to black
+			// clear background to black
 			w.renderer.SetDrawColor(0, 0, 0, 0)
 			w.renderer.Clear()
 			// client updates window
