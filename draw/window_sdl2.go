@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
+	"unicode/utf8"
 
+	"github.com/veandco/go-sdl2/img"
+	"github.com/veandco/go-sdl2/mix"
 	"github.com/veandco/go-sdl2/sdl"
-	"github.com/veandco/go-sdl2/sdl_image"
-	"github.com/veandco/go-sdl2/sdl_mixer"
 )
 
 func init() {
@@ -52,7 +52,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	defer sdl.Quit()
 
-	sdlWindow, renderer, err := sdl.CreateWindowAndRenderer(width, height, 0)
+	sdlWindow, renderer, err := sdl.CreateWindowAndRenderer(int32(width), int32(height), 0)
 	if err != nil {
 		return err
 	}
@@ -85,9 +85,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 }
 
 func (w *window) createBitmapFont() {
-	ptr := unsafe.Pointer(&bitmapFontWhitePng[0])
-	rwops := sdl.RWFromMem(ptr, len(bitmapFontWhitePng))
-	texture, err := img.LoadTexture_RW(w.renderer, rwops, false)
+	rwops, _ := sdl.RWFromMem(bitmapFontWhitePng)
+	texture, err := img.LoadTextureRW(w.renderer, rwops, false)
 	if err != nil {
 		panic(err)
 	}
@@ -127,10 +126,12 @@ func (w *window) runMainLoop() {
 				if event.State == sdl.RELEASED {
 					w.mouseDown[MouseButton(event.Button)] = false
 				}
-			case *sdl.KeyDownEvent:
-				w.setKeyDown(event.Keysym.Sym, true)
-			case *sdl.KeyUpEvent:
-				w.setKeyDown(event.Keysym.Sym, false)
+			case *sdl.KeyboardEvent:
+				if event.Type == sdl.KEYDOWN {
+					w.setKeyDown(event.Keysym.Sym, true)
+				} else {
+					w.setKeyDown(event.Keysym.Sym, false)
+				}
 			}
 		}
 
@@ -186,7 +187,8 @@ func (w *window) close() {
 }
 
 func (w *window) Size() (int, int) {
-	return w.window.GetSize()
+	width, height := w.window.GetSize()
+	return int(width), int(height)
 }
 
 func (w *window) WasKeyPressed(key Key) bool {
@@ -262,7 +264,7 @@ func makeSDLpoints(from []point) []sdl.Point {
 
 func (w *window) DrawPoint(x, y int, color Color) {
 	w.setColor(color)
-	w.renderer.DrawPoint(x, y)
+	w.renderer.DrawPoint(int32(x), int32(y))
 }
 
 func (w *window) setColor(color Color) {
@@ -289,7 +291,7 @@ func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
 }
 
 func (w *window) line(fromX, fromY, toX, toY int) {
-	w.renderer.DrawLine(fromX, fromY, toX, toY)
+	w.renderer.DrawLine(int32(fromX), int32(fromY), int32(toX), int32(toY))
 }
 
 func (w *window) DrawRect(x, y, width, height int, color Color) {

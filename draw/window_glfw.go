@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-gl/gl/v2.1/gl"
 	"github.com/go-gl/glfw/v3.1/glfw"
@@ -412,7 +413,7 @@ func (w *window) DrawImageFileTo(path string, x, y, width, height, degrees int) 
 	}
 
 	x1, y1 := float32(x), float32(y)
-	x2, y2 := float32(x+wwidth-0), float32(y+height-0)
+	x2, y2 := float32(x+width-0), float32(y+height-0)
 	cx, cy := x1+float32(width)/2, y1+float32(height)/2
 	sin, cos := math.Sincos(float64(degrees) / 180 * math.Pi)
 	sin32, cos32 := float32(sin), float32(cos)
