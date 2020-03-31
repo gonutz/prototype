@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/veandco/go-sdl2/img"
-	"github.com/veandco/go-sdl2/mix"
-	"github.com/veandco/go-sdl2/sdl"
+	"github.com/gonutz/go-sdl2/img"
+	"github.com/gonutz/go-sdl2/mix"
+	"github.com/gonutz/go-sdl2/sdl"
 )
 
 func init() {
