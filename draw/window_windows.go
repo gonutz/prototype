@@ -841,30 +841,9 @@ func rawInputToKey(kb w32.RAWKEYBOARD) (key Key, down bool) {
 			uint(scanCode),
 			w32.MAPVK_VSC_TO_VK_EX,
 		))
-	} else if virtualKey == w32.VK_NUMLOCK {
-		// correct PAUSE/BREAK and NUM LOCK silliness, and set the extended
-		// bit
-		scanCode = uint16(w32.MapVirtualKey(
-			uint(virtualKey),
-			w32.MAPVK_VK_TO_VSC,
-		) | 0x100)
 	}
 
 	isE0 := (flags & w32.RI_KEY_E0) != 0
-	isE1 := (flags & w32.RI_KEY_E1) != 0
-
-	if isE1 {
-		// for escaped sequences, turn the virtual key into the correct scan code using MapVirtualKey.
-		// however, MapVirtualKey is unable to map VK_PAUSE (this is a known bug), hence we map that by hand.
-		if virtualKey == w32.VK_PAUSE {
-			scanCode = 0x45
-		} else {
-			scanCode = uint16(w32.MapVirtualKey(
-				uint(virtualKey),
-				w32.MAPVK_VK_TO_VSC,
-			))
-		}
-	}
 
 	switch virtualKey {
 	case w32.VK_CONTROL:
