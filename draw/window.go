@@ -170,6 +170,7 @@ type MouseClick struct {
 // MouseButton is one of the three buttons typically present on a mouse.
 type MouseButton int
 
+// These are the possible values for MouseButton.
 const (
 	LeftButton MouseButton = iota
 	MiddleButton
