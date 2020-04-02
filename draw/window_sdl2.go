@@ -128,7 +128,7 @@ func (w *window) runMainLoop() {
 			case *sdl.MouseWheelEvent:
 				dx, dy := event.X, event.Y
 				if event.Direction == sdl.MOUSEWHEEL_FLIPPED {
-					dx, dy := -event.X, -event.Y
+					dx, dy = -event.X, -event.Y
 				}
 				w.wheelX += float64(dx)
 				w.wheelY += float64(dy)
