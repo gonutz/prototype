@@ -20,8 +20,6 @@ func init() {
 }
 
 type window struct {
-	MouseMoved bool
-
 	update      UpdateFunction
 	window      *sdl.Window
 	running     bool
@@ -35,6 +33,8 @@ type window struct {
 	clicks      []MouseClick
 	pressedKeys []Key
 	mouse       struct{ x, y int }
+	wheelX      float64
+	wheelY      float64
 }
 
 var windowRunningMutex sync.Mutex
@@ -117,7 +117,6 @@ func (w *window) runMainLoop() {
 			case *sdl.MouseMotionEvent:
 				w.mouse.x = int(event.X)
 				w.mouse.y = int(event.Y)
-				w.MouseMoved = true
 			case *sdl.MouseButtonEvent:
 				if event.State == sdl.PRESSED {
 					w.clicks = append(w.clicks, makeClick(event))
@@ -126,6 +125,13 @@ func (w *window) runMainLoop() {
 				if event.State == sdl.RELEASED {
 					w.mouseDown[MouseButton(event.Button)] = false
 				}
+			case *sdl.MouseWheelEvent:
+				dx, dy := event.X, event.Y
+				if event.Direction == sdl.MOUSEWHEEL_FLIPPED {
+					dx, dy := -event.X, -event.Y
+				}
+				w.wheelX += float64(dx)
+				w.wheelY += float64(dy)
 			case *sdl.KeyboardEvent:
 				if event.Type == sdl.KEYDOWN {
 					w.setKeyDown(event.Keysym.Sym, true)
@@ -144,9 +150,10 @@ func (w *window) runMainLoop() {
 			w.update(w)
 			// reset all events
 			w.pressedKeys = nil
-			w.MouseMoved = false
 			w.clicks = nil
 			w.typed = nil
+			w.wheelX = 0
+			w.wheelY = 0
 			lastUpdateTime = now
 			// show the window
 			w.renderer.Present()
@@ -227,6 +234,14 @@ func (w *window) Characters() string {
 
 func (w *window) MousePosition() (int, int) {
 	return w.mouse.x, w.mouse.y
+}
+
+func (w *window) MouseWheelY() float64 {
+	return w.wheelY
+}
+
+func (w *window) MouseWheelX() float64 {
+	return w.wheelX
 }
 
 func (w *window) Close() {

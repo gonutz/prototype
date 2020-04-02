@@ -291,6 +291,8 @@ type window struct {
 	d3d9Error d3d9.Error
 	running   bool
 	mouse     struct{ x, y int }
+	wheelX    float64
+	wheelY    float64
 	keyDown   [keyCount]bool
 	mouseDown [mouseButtonCount]bool
 	pressed   []Key
@@ -347,6 +349,12 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 	case w32.WM_MBUTTONUP:
 		globalWindow.mouseEvent(MiddleButton, false)
 		return 1
+	case w32.WM_MOUSEWHEEL:
+		globalWindow.wheelY += float64(int16(w32.HIWORD(uint32(w)))) / 120.0
+		return 1
+	case w32.WM_MOUSEHWHEEL:
+		globalWindow.wheelX += float64(int16(w32.HIWORD(uint32(w)))) / 120.0
+		return 1
 	case w32.WM_DESTROY:
 		w32.PostQuitMessage(0)
 		return 1
@@ -397,6 +405,14 @@ func (w *window) Clicks() []MouseClick {
 
 func (w *window) MousePosition() (int, int) {
 	return w.mouse.x, w.mouse.y
+}
+
+func (w *window) MouseWheelX() float64 {
+	return w.wheelX
+}
+
+func (w *window) MouseWheelY() float64 {
+	return w.wheelY
 }
 
 func (w *window) DrawPoint(x, y int, color Color) {
@@ -681,6 +697,8 @@ func getTextSizeInCharacters(text string) (int, int) {
 func (w *window) finishFrame() {
 	w.pressed = w.pressed[0:0]
 	w.clicks = w.clicks[0:0]
+	w.wheelX = 0
+	w.wheelY = 0
 	w.text = ""
 }
 

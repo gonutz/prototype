@@ -48,6 +48,19 @@ type Window interface {
 	// the function call. It is relative to the drawing area of the window.
 	MousePosition() (x, y int)
 
+	// MouseWheelY returns the aggregate vertical mouse wheel rotation during
+	// the last frame. A value of 1 typically corresponds to one tick of the
+	// wheel. A positive value means the wheel was rotated forward, away from
+	// the user, a negative value means the wheel was rotated backward towards
+	// the user.
+	MouseWheelY() float64
+
+	// MouseWheelX returns the aggregate horizontal mouse wheel rotation during
+	// the last frame. A value of 1 typically corresponds to one tick of the
+	// wheel. A positive value means the wheel was rotated right a negative
+	// value means the wheel was rotated left.
+	MouseWheelX() float64
+
 	// DrawPoint draws a single point at the given screen position in pixels.
 	DrawPoint(x, y int, color Color)
 
@@ -127,7 +140,7 @@ func RGBA(r, g, b, a float32) Color {
 	return Color{r, g, b, a}
 }
 
-// predefined colors
+// These are predefined colors for intuitive use, no need to set color channels.
 var (
 	Black       = Color{0, 0, 0, 1}
 	White       = Color{1, 1, 1, 1}
@@ -183,7 +196,7 @@ const (
 // Key represents a key on the keyboard.
 type Key int
 
-// key constants
+// These are all available keyboard keys.
 const (
 	KeyA Key = 1 + iota
 	KeyB

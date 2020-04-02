@@ -33,6 +33,7 @@ type window struct {
 	textures       map[string]texture
 	clicks         []MouseClick
 	mouseX, mouseY int
+	wheelX, wheelY float64
 }
 
 // RunWindow creates a new window and calls update 60 times per second.
@@ -82,6 +83,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	win.SetCharCallback(w.charTyped)
 	win.SetMouseButtonCallback(w.mouseButtonEvent)
 	win.SetCursorPosCallback(w.mousePositionChanged)
+	win.SetScrollCallback(func(_ *glfw.Window, dx, dy float64) {
+		w.wheelX += dx
+		w.wheelY += dy
+	})
 	win.SetSizeCallback(func(_ *glfw.Window, width, height int) {
 		w.width, w.height = float64(width), float64(height)
 		gl.MatrixMode(gl.PROJECTION)
@@ -105,6 +110,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			w.pressed = w.pressed[0:0]
 			w.typed = w.typed[0:0]
 			w.clicks = w.clicks[0:0]
+			w.wheelX = 0
+			w.wheelY = 0
 
 			lastUpdateTime = now
 			win.SwapBuffers()
