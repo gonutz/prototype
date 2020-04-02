@@ -286,19 +286,21 @@ func hideConsoleWindow() {
 }
 
 type window struct {
-	handle    w32.HWND
-	device    *d3d9.Device
-	d3d9Error d3d9.Error
-	running   bool
-	mouse     struct{ x, y int }
-	keyDown   [keyCount]bool
-	mouseDown [mouseButtonCount]bool
-	pressed   []Key
-	clicks    []MouseClick
-	soundOn   bool
-	sounds    map[string]mixer.SoundSource
-	text      string
-	textures  map[string]sizedTexture
+	handle     w32.HWND
+	device     *d3d9.Device
+	d3d9Error  d3d9.Error
+	running    bool
+	mouse      struct{ x, y int }
+	keyDown    [keyCount]bool
+	mouseDown  [mouseButtonCount]bool
+	pressed    []Key
+	clicks     []MouseClick
+	soundOn    bool
+	sounds     map[string]mixer.SoundSource
+	text       string
+	textures   map[string]sizedTexture
+	scrolled   bool
+	mouseWheel MouseWheel
 }
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
@@ -347,6 +349,11 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 	case w32.WM_MBUTTONUP:
 		globalWindow.mouseEvent(MiddleButton, false)
 		return 1
+	case w32.WM_MOUSEWHEEL:
+		const wheelDelta = 120
+		amount := int(int16(w32.HIWORD(uint32(w)))) / wheelDelta
+		globalWindow.mouseScrollEvent(amount)
+		return 1
 	case w32.WM_DESTROY:
 		w32.PostQuitMessage(0)
 		return 1
@@ -389,6 +396,10 @@ func (w *window) IsMouseDown(button MouseButton) bool {
 		return false
 	}
 	return w.mouseDown[button]
+}
+
+func (w *window) DidMouseScroll(wheel MouseWheel) bool {
+	return w.scrolled && w.mouseWheel == wheel
 }
 
 func (w *window) Clicks() []MouseClick {
@@ -662,6 +673,17 @@ func (w *window) mouseEvent(button MouseButton, down bool) {
 	}
 }
 
+func (w *window) mouseScrollEvent(amount int) {
+	var wheel MouseWheel
+	if amount < 0 {
+		wheel = WheelDown
+	} else {
+		wheel = WheelUp
+	}
+	w.scrolled = true
+	w.mouseWheel = wheel
+}
+
 func getTextSizeInCharacters(text string) (int, int) {
 	curCharsX, maxCharsX, lines := 0, 0, 1
 	for _, c := range text {
@@ -681,6 +703,7 @@ func getTextSizeInCharacters(text string) (int, int) {
 func (w *window) finishFrame() {
 	w.pressed = w.pressed[0:0]
 	w.clicks = w.clicks[0:0]
+	w.scrolled = false
 	w.text = ""
 }
 

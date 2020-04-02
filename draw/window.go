@@ -44,6 +44,10 @@ type Window interface {
 	// Clicks returns all MouseClicks that occurred during the last frame.
 	Clicks() []MouseClick
 
+	// DidMouseScroll returns wether the given mouse wheel was used during the
+	// last frame
+	DidMouseScroll(wheel MouseWheel) bool
+
 	// MousePositoin returns the current mouse position in pixels at the time of
 	// the function call. It is relative to the drawing area of the window.
 	MousePosition() (x, y int)
@@ -178,6 +182,15 @@ const (
 
 	// NOTE mouseButtonCount has to come last
 	mouseButtonCount
+)
+
+// MouseWheel represents the wheel on a mouse
+type MouseWheel int
+
+// Possible values for MouseWheel
+const (
+	WheelUp MouseWheel = iota
+	WheelDown
 )
 
 // Key represents a key on the keyboard.
