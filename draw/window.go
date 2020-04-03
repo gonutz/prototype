@@ -57,7 +57,7 @@ type Window interface {
 
 	// MouseWheelX returns the aggregate horizontal mouse wheel rotation during
 	// the last frame. A value of 1 typically corresponds to one tick of the
-	// wheel. A positive value means the wheel was rotated right a negative
+	// wheel. A positive value means the wheel was rotated right, a negative
 	// value means the wheel was rotated left.
 	MouseWheelX() float64
 
