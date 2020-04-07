@@ -142,6 +142,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	if window == 0 {
 		return errors.New("CreateWindowEx failed")
 	}
+	defer w32.DestroyWindow(window)
 	globalWindow.handle = window
 	w32.SetWindowText(window, title)
 
@@ -357,7 +358,9 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 		globalWindow.wheelX += float64(int16(w32.HIWORD(uint32(w)))) / 120.0
 		return 1
 	case w32.WM_DESTROY:
-		w32.PostQuitMessage(0)
+		if globalWindow != nil {
+			globalWindow.running = false
+		}
 		return 1
 	default:
 		return w32.DefWindowProc(window, msg, w, l)
