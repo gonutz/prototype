@@ -89,6 +89,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	if atom == 0 {
 		return errors.New("RegisterClassEx failed")
 	}
+	defer w32.UnregisterClassAtom(atom, w32.GetModuleHandle(""))
 
 	var style uint = w32.WS_OVERLAPPED | w32.WS_CAPTION | w32.WS_SYSMENU | w32.WS_VISIBLE
 	var windowSize = w32.RECT{0, 0, int32(width), int32(height)}
