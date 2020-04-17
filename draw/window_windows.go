@@ -175,7 +175,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return errors.New("RegisterRawInputDevices failed")
 	}
 
-	device, _, err := d3d.CreateDevice(
+	device, presentParams, err := d3d.CreateDevice(
 		d3d9.ADAPTER_DEFAULT,
 		d3d9.DEVTYPE_HAL,
 		d3d9.HWND(window),
@@ -196,27 +196,30 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	defer device.Release()
 
-	device.SetFVF(vertexFormat)
-	device.SetRenderState(d3d9.RS_ZENABLE, d3d9.ZB_FALSE)
-	device.SetRenderState(d3d9.RS_CULLMODE, d3d9.CULL_CCW)
-	device.SetRenderState(d3d9.RS_LIGHTING, 0)
-	device.SetRenderState(d3d9.RS_SRCBLEND, d3d9.BLEND_SRCALPHA)
-	device.SetRenderState(d3d9.RS_DESTBLEND, d3d9.BLEND_INVSRCALPHA)
-	device.SetRenderState(d3d9.RS_ALPHABLENDENABLE, 1)
-	// use nearest neighbor texture filtering
-	device.SetSamplerState(0, d3d9.SAMP_MINFILTER, d3d9.TEXF_NONE)
-	device.SetSamplerState(0, d3d9.SAMP_MAGFILTER, d3d9.TEXF_NONE)
+	setRenderState := func() {
+		device.SetFVF(vertexFormat)
+		device.SetRenderState(d3d9.RS_ZENABLE, d3d9.ZB_FALSE)
+		device.SetRenderState(d3d9.RS_CULLMODE, d3d9.CULL_CCW)
+		device.SetRenderState(d3d9.RS_LIGHTING, 0)
+		device.SetRenderState(d3d9.RS_SRCBLEND, d3d9.BLEND_SRCALPHA)
+		device.SetRenderState(d3d9.RS_DESTBLEND, d3d9.BLEND_INVSRCALPHA)
+		device.SetRenderState(d3d9.RS_ALPHABLENDENABLE, 1)
+		// use nearest neighbor texture filtering
+		device.SetSamplerState(0, d3d9.SAMP_MINFILTER, d3d9.TEXF_NONE)
+		device.SetSamplerState(0, d3d9.SAMP_MAGFILTER, d3d9.TEXF_NONE)
 
-	device.SetTextureStageState(0, d3d9.TSS_COLOROP, d3d9.TOP_MODULATE)
-	device.SetTextureStageState(0, d3d9.TSS_COLORARG1, d3d9.TA_TEXTURE)
-	device.SetTextureStageState(0, d3d9.TSS_COLORARG2, d3d9.TA_DIFFUSE)
+		device.SetTextureStageState(0, d3d9.TSS_COLOROP, d3d9.TOP_MODULATE)
+		device.SetTextureStageState(0, d3d9.TSS_COLORARG1, d3d9.TA_TEXTURE)
+		device.SetTextureStageState(0, d3d9.TSS_COLORARG2, d3d9.TA_DIFFUSE)
 
-	device.SetTextureStageState(0, d3d9.TSS_ALPHAOP, d3d9.TOP_MODULATE)
-	device.SetTextureStageState(0, d3d9.TSS_ALPHAARG1, d3d9.TA_TEXTURE)
-	device.SetTextureStageState(0, d3d9.TSS_ALPHAARG2, d3d9.TA_DIFFUSE)
+		device.SetTextureStageState(0, d3d9.TSS_ALPHAOP, d3d9.TOP_MODULATE)
+		device.SetTextureStageState(0, d3d9.TSS_ALPHAARG1, d3d9.TA_TEXTURE)
+		device.SetTextureStageState(0, d3d9.TSS_ALPHAARG2, d3d9.TA_DIFFUSE)
 
-	device.SetTextureStageState(1, d3d9.TSS_COLOROP, d3d9.TOP_DISABLE)
-	device.SetTextureStageState(1, d3d9.TSS_ALPHAOP, d3d9.TOP_DISABLE)
+		device.SetTextureStageState(1, d3d9.TSS_COLOROP, d3d9.TOP_DISABLE)
+		device.SetTextureStageState(1, d3d9.TSS_ALPHAOP, d3d9.TOP_DISABLE)
+	}
+	setRenderState()
 
 	globalWindow.device = device
 	if err := globalWindow.loadFontTexture(); err != nil {
@@ -239,6 +242,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// what D3D9 reports; we could measure some frames and estimate the actual
 	// refresh rate, then compensate for it
 
+	deviceIsLost := false
+
 	var msg w32.MSG
 	w32.PeekMessage(&msg, 0, 0, 0, w32.PM_NOREMOVE)
 	for msg.Message != w32.WM_QUIT && globalWindow.running {
@@ -246,35 +251,49 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			w32.TranslateMessage(&msg)
 			w32.DispatchMessage(&msg)
 		} else {
-			if err := device.BeginScene(); err != nil {
-				return err
+			if deviceIsLost {
+				_, err = device.Reset(presentParams)
+				if err == nil {
+					deviceIsLost = false
+					setRenderState()
+				}
 			}
 
-			var wasUpdated bool
-			for nextUpdate > 0 {
-				// clear the screen to black before the update
-				globalWindow.FillRect(0, 0, width, height, Black)
-				update(globalWindow)
-				wasUpdated = true
-				nextUpdate -= 1
-			}
-			nextUpdate += updatesPerVsync
+			if !deviceIsLost {
+				if err := device.BeginScene(); err != nil {
+					return err
+				}
 
-			if globalWindow.d3d9Error != nil {
-				return globalWindow.d3d9Error
-			}
+				var wasUpdated bool
+				for nextUpdate > 0 {
+					// clear the screen to black before the update
+					globalWindow.FillRect(0, 0, width, height, Black)
+					update(globalWindow)
+					wasUpdated = true
+					nextUpdate -= 1
+				}
+				nextUpdate += updatesPerVsync
 
-			if err := device.EndScene(); err != nil {
-				return err
-			}
-			windowW, windowH := globalWindow.Size()
-			r := &d3d9.RECT{0, 0, int32(windowW), int32(windowH)}
-			if err := device.Present(r, r, 0, nil); err != nil {
-				return err
-			}
+				if globalWindow.d3d9Error != nil {
+					return globalWindow.d3d9Error
+				}
 
-			if wasUpdated {
-				globalWindow.finishFrame()
+				if err := device.EndScene(); err != nil {
+					return err
+				}
+				windowW, windowH := globalWindow.Size()
+				r := &d3d9.RECT{0, 0, int32(windowW), int32(windowH)}
+				if presentErr := device.Present(r, r, 0, nil); presentErr != nil {
+					if presentErr.Code() == d3d9.ERR_DEVICELOST {
+						deviceIsLost = true
+					} else {
+						return presentErr
+					}
+				}
+
+				if wasUpdated {
+					globalWindow.finishFrame()
+				}
 			}
 		}
 	}
