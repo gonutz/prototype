@@ -20,6 +20,12 @@ type Window interface {
 	// Size returns the window's size in pixels.
 	Size() (width, height int)
 
+	// SetFullscreen toggles between the fixed-size window with title and border
+	// and going full screen on the monitor that the window is placed on when
+	// the call to SetFullscreen(true) occurs.
+	// Use Window.Size to get the new size after this.
+	SetFullscreen(f bool)
+
 	// WasKeyPressed reports whether the specified key was pressed at any time
 	// during the last frame. If the user presses a key and releases it in the
 	// same frame, this function stores that information and will return true.

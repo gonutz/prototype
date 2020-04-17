@@ -198,6 +198,14 @@ func (w *window) Size() (int, int) {
 	return int(width), int(height)
 }
 
+func (w *window) SetFullscreen(f bool) {
+	if f {
+		w.window.SetFullscreen(sdl.WINDOW_FULLSCREEN_DESKTOP)
+	} else {
+		w.window.SetFullscreen(0)
+	}
+}
+
 func (w *window) WasKeyPressed(key Key) bool {
 	for _, k := range w.pressedKeys {
 		if k == key {

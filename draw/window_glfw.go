@@ -133,6 +133,11 @@ func (w *window) Size() (int, int) {
 	return int(w.width + 0.5), int(w.height + 0.5)
 }
 
+func (w *window) SetFullscreen(f bool) {
+	// TODO Find out how to toggle full screen in GLFW 3.1 and tell OpenGL about
+	// it.
+}
+
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
 	if action == glfw.Press || action == glfw.Repeat {
 		w.pressed = append(w.pressed, tokey(key))

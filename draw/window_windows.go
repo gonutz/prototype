@@ -32,6 +32,8 @@ const (
 	vertexFormat = d3d9.FVF_XYZRHW | d3d9.FVF_DIFFUSE | d3d9.FVF_TEX1
 	vertexStride = 28
 
+	windowedStyle = w32.WS_OVERLAPPED | w32.WS_CAPTION | w32.WS_SYSMENU | w32.WS_VISIBLE
+
 	fontTextureID = "///font"
 )
 
@@ -91,20 +93,34 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	defer w32.UnregisterClassAtom(atom, w32.GetModuleHandle(""))
 
-	var style uint = w32.WS_OVERLAPPED | w32.WS_CAPTION | w32.WS_SYSMENU | w32.WS_VISIBLE
 	var windowSize = w32.RECT{0, 0, int32(width), int32(height)}
 	// NOTE MSDN says you cannot pass WS_OVERLAPPED to this function but it
 	// seems to work (on XP and Windows 8.1 at least) in conjuntion with the
 	// other flags
-	if w32.AdjustWindowRect(&windowSize, style, false) {
+	if w32.AdjustWindowRect(&windowSize, windowedStyle, false) {
 		width = int(windowSize.Right - windowSize.Left)
 		height = int(windowSize.Bottom - windowSize.Top)
+	}
+
+	// list all monitors and find the largest one so we can make our back buffer
+	// handle any fullscreen size.
+	monitorCount := d3d.GetAdapterCount()
+	backBufferWidth, backBufferHeight := width, height
+	for i := uint(0); i < monitorCount; i++ {
+		if mode, err := d3d.GetAdapterDisplayMode(i); err == nil {
+			w, h := int(mode.Width), int(mode.Height)
+			if w > backBufferWidth {
+				backBufferWidth = w
+			}
+			if h > backBufferHeight {
+				backBufferHeight = h
+			}
+		}
 	}
 
 	// find the first monitor that is large enough to fit the window, if none is
 	// found we just use the default monitor
 	var selectedMonitor uint = d3d9.ADAPTER_DEFAULT
-	monitorCount := d3d.GetAdapterCount()
 	for i := uint(0); i < monitorCount; i++ {
 		mode, err := d3d.GetAdapterDisplayMode(i)
 		if err == nil && int(mode.Width) >= width && int(mode.Height) >= height {
@@ -135,7 +151,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		0,
 		syscall.StringToUTF16Ptr("GoPrototypeWindowClass"),
 		nil,
-		style,
+		windowedStyle,
 		x, y, width, height,
 		0, 0, 0, nil,
 	)
@@ -166,9 +182,11 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		d3d9.CREATE_SOFTWARE_VERTEXPROCESSING,
 		d3d9.PRESENT_PARAMETERS{
 			BackBufferFormat:     d3d9.FMT_UNKNOWN, // use current display format
+			BackBufferWidth:      uint32(backBufferWidth),
+			BackBufferHeight:     uint32(backBufferHeight),
 			BackBufferCount:      1,
 			Windowed:             1,
-			SwapEffect:           d3d9.SWAPEFFECT_DISCARD,
+			SwapEffect:           d3d9.SWAPEFFECT_COPY, // so Present can use rects
 			HDeviceWindow:        d3d9.HWND(window),
 			PresentationInterval: d3d9.PRESENT_INTERVAL_ONE, // enable VSync
 		},
@@ -249,7 +267,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			if err := device.EndScene(); err != nil {
 				return err
 			}
-			if err := device.Present(nil, nil, 0, nil); err != nil {
+			windowW, windowH := globalWindow.Size()
+			r := &d3d9.RECT{0, 0, int32(windowW), int32(windowH)}
+			if err := device.Present(r, r, 0, nil); err != nil {
 				return err
 			}
 
@@ -288,21 +308,23 @@ func hideConsoleWindow() {
 }
 
 type window struct {
-	handle    w32.HWND
-	device    *d3d9.Device
-	d3d9Error d3d9.Error
-	running   bool
-	mouse     struct{ x, y int }
-	wheelX    float64
-	wheelY    float64
-	keyDown   [keyCount]bool
-	mouseDown [mouseButtonCount]bool
-	pressed   []Key
-	clicks    []MouseClick
-	soundOn   bool
-	sounds    map[string]mixer.SoundSource
-	text      string
-	textures  map[string]sizedTexture
+	handle       w32.HWND
+	device       *d3d9.Device
+	d3d9Error    d3d9.Error
+	running      bool
+	isFullscreen bool
+	windowed     w32.WINDOWPLACEMENT
+	mouse        struct{ x, y int }
+	wheelX       float64
+	wheelY       float64
+	keyDown      [keyCount]bool
+	mouseDown    [mouseButtonCount]bool
+	pressed      []Key
+	clicks       []MouseClick
+	soundOn      bool
+	sounds       map[string]mixer.SoundSource
+	text         string
+	textures     map[string]sizedTexture
 }
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
@@ -374,6 +396,63 @@ func (w *window) Close() {
 func (w *window) Size() (int, int) {
 	r := w32.GetClientRect(w.handle)
 	return int(r.Right - r.Left), int(r.Bottom - r.Top)
+}
+
+func (w *window) SetFullscreen(f bool) {
+	if f == w.isFullscreen {
+		return
+	}
+
+	if f {
+		w.windowed = enableFullscreen(w.handle)
+	} else {
+		disableFullscreen(w.handle, w.windowed)
+	}
+
+	w.isFullscreen = f
+}
+
+// enableFullscreen makes the window a borderless window that covers the full
+// area of the monitor under the window.
+// It returns the previous window placement. Store that value and use it with
+// disableFullscreen to reset the window to what it was before.
+func enableFullscreen(window w32.HWND) (windowed w32.WINDOWPLACEMENT) {
+	style := w32.GetWindowLong(window, w32.GWL_STYLE)
+	var monitorInfo w32.MONITORINFO
+	monitor := w32.MonitorFromWindow(window, w32.MONITOR_DEFAULTTOPRIMARY)
+	if w32.GetWindowPlacement(window, &windowed) &&
+		w32.GetMonitorInfo(monitor, &monitorInfo) {
+		w32.SetWindowLong(
+			window,
+			w32.GWL_STYLE,
+			uint32(style & ^w32.WS_OVERLAPPEDWINDOW),
+		)
+		w32.SetWindowPos(
+			window,
+			0,
+			int(monitorInfo.RcMonitor.Left),
+			int(monitorInfo.RcMonitor.Top),
+			int(monitorInfo.RcMonitor.Right-monitorInfo.RcMonitor.Left),
+			int(monitorInfo.RcMonitor.Bottom-monitorInfo.RcMonitor.Top),
+			w32.SWP_NOOWNERZORDER|w32.SWP_FRAMECHANGED,
+		)
+	}
+	w32.ShowCursor(false)
+	return
+}
+
+// disableFullscreen makes the window have a border, title and the close button
+// and places it at the position given by the window placement parameter.
+// Use this in conjunction with enableFullscreen to toggle a window's fullscreen
+// state.
+func disableFullscreen(window w32.HWND, placement w32.WINDOWPLACEMENT) {
+	w32.SetWindowLong(window, w32.GWL_STYLE, windowedStyle)
+	w32.SetWindowPlacement(window, &placement)
+	w32.SetWindowPos(window, 0, 0, 0, 0, 0,
+		w32.SWP_NOMOVE|w32.SWP_NOSIZE|w32.SWP_NOZORDER|
+			w32.SWP_NOOWNERZORDER|w32.SWP_FRAMECHANGED,
+	)
+	w32.ShowCursor(true)
 }
 
 func (w *window) WasKeyPressed(key Key) bool {
