@@ -98,8 +98,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// seems to work (on XP and Windows 8.1 at least) in conjuntion with the
 	// other flags
 	if w32.AdjustWindowRect(&windowSize, windowedStyle, false) {
-		width = int(windowSize.Right - windowSize.Left)
-		height = int(windowSize.Bottom - windowSize.Top)
+		width = int(windowSize.Width())
+		height = int(windowSize.Height())
 	}
 
 	// list all monitors and find the largest one so we can make our back buffer
@@ -141,8 +141,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		if monitor != 0 {
 			var info w32.MONITORINFO
 			if w32.GetMonitorInfo(w32.HMONITOR(monitor), &info) {
-				x = int(info.RcMonitor.Left) + int(mode.Width/2) - width/2
-				y = int(info.RcMonitor.Top) + int(mode.Height/2) - height/2
+				workW := int(info.RcWork.Width())
+				workH := int(info.RcWork.Height())
+				x = int(info.RcWork.Left) + (workW-width)/2
+				y = int(info.RcWork.Top) + (workH-height)/2
 			}
 		}
 	}
