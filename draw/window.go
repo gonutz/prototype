@@ -1,3 +1,8 @@
+// Package draw contains the RunWindow function which you call from main to open
+// a window. You pass it a callback which is called at 60 frames per second. The
+// callback gives you a Window which you use to do input handling, rendering and
+// audio output. See the documentation for Window for more details on what you
+// can do.
 package draw
 
 import "strconv"
