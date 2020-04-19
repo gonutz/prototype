@@ -120,10 +120,24 @@ func (w *window) runMainLoop() {
 			case *sdl.MouseButtonEvent:
 				if event.State == sdl.PRESSED {
 					w.clicks = append(w.clicks, makeClick(event))
-					w.mouseDown[MouseButton(event.Button)] = true
+					switch event.Button {
+					case sdl.BUTTON_LEFT:
+						w.mouseDown[LeftButton] = true
+					case sdl.BUTTON_RIGHT:
+						w.mouseDown[RightButton] = true
+					case sdl.BUTTON_MIDDLE:
+						w.mouseDown[MiddleButton] = true
+					}
 				}
 				if event.State == sdl.RELEASED {
-					w.mouseDown[MouseButton(event.Button)] = false
+					switch event.Button {
+					case sdl.BUTTON_LEFT:
+						w.mouseDown[LeftButton] = false
+					case sdl.BUTTON_RIGHT:
+						w.mouseDown[RightButton] = false
+					case sdl.BUTTON_MIDDLE:
+						w.mouseDown[MiddleButton] = false
+					}
 				}
 			case *sdl.MouseWheelEvent:
 				dx, dy := event.X, event.Y
