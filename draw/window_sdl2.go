@@ -222,9 +222,9 @@ func (w *window) SetFullscreen(f bool) {
 
 func (w *window) ShowCursor(show bool) {
 	if show {
-		w.window.ShowCursor(sdl.ENABLE)
+		sdl.ShowCursor(sdl.ENABLE)
 	} else {
-		w.window.ShowCursor(sdl.DISABLE)
+		sdl.ShowCursor(sdl.DISABLE)
 	}
 }
 
