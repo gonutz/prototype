@@ -336,6 +336,7 @@ type window struct {
 	running      bool
 	isFullscreen bool
 	windowed     w32.WINDOWPLACEMENT
+	cursorHidden bool
 	mouse        struct{ x, y int }
 	wheelX       float64
 	wheelY       float64
@@ -431,7 +432,40 @@ func (w *window) SetFullscreen(f bool) {
 		disableFullscreen(w.handle, w.windowed)
 	}
 
+	// On Windows 10, going into fullscreen mode will hide the mouse cursor but
+	// we want to not change it without the user having called ShowCursor, that
+	// is why we revert to the last user-set value.
+	if w.cursorHidden {
+		setShowCursorCountTo(-1)
+	} else {
+		setShowCursorCountTo(0)
+	}
+
 	w.isFullscreen = f
+}
+
+func (w *window) ShowCursor(show bool) {
+	hide := !show
+	if hide == w.cursorHidden {
+		return
+	}
+
+	w.cursorHidden = hide
+	if w.cursorHidden {
+		setShowCursorCountTo(-1)
+	} else {
+		setShowCursorCountTo(0)
+	}
+}
+
+func setShowCursorCountTo(count int) {
+	n := w32.ShowCursor(true)
+	for n < count {
+		n = w32.ShowCursor(true)
+	}
+	for n > count {
+		n = w32.ShowCursor(false)
+	}
 }
 
 // enableFullscreen makes the window a borderless window that covers the full

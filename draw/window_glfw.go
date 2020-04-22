@@ -138,6 +138,14 @@ func (w *window) SetFullscreen(f bool) {
 	// it.
 }
 
+func (w *window) ShowCursor(show bool) {
+	if show {
+		w.window.SetInputMode(glfw.CursorMode, glfw.CursorNormal)
+	} else {
+		w.window.SetInputMode(glfw.CursorMode, glfw.CursorHidden)
+	}
+}
+
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
 	if action == glfw.Press || action == glfw.Repeat {
 		w.pressed = append(w.pressed, tokey(key))

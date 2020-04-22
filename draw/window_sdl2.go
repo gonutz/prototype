@@ -220,6 +220,14 @@ func (w *window) SetFullscreen(f bool) {
 	}
 }
 
+func (w *window) ShowCursor(show bool) {
+	if show {
+		w.window.ShowCursor(sdl.ENABLE)
+	} else {
+		w.window.ShowCursor(sdl.DISABLE)
+	}
+}
+
 func (w *window) WasKeyPressed(key Key) bool {
 	for _, k := range w.pressedKeys {
 		if k == key {

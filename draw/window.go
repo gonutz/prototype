@@ -29,7 +29,12 @@ type Window interface {
 	// and going full screen on the monitor that the window is placed on when
 	// the call to SetFullscreen(true) occurs.
 	// Use Window.Size to get the new size after this.
+	// By default the window is not fullscreen. It always starts windowed.
 	SetFullscreen(f bool)
+
+	// ShowCursor set the OS' mouse cursor to visible or invisible. It defaults
+	// to visible if you do not call ShowCursor.
+	ShowCursor(show bool)
 
 	// WasKeyPressed reports whether the specified key was pressed at any time
 	// during the last frame. If the user presses a key and releases it in the
