@@ -102,50 +102,77 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		height = int(windowSize.Height())
 	}
 
-	// list all monitors and find the largest one so we can make our back buffer
-	// handle any fullscreen size.
+	// Enum all monitors. We want to find the right one to show our window on.
+	type monitor struct {
+		handle                w32.HMONITOR
+		width, height         int
+		workLeft, workTop     int
+		workWidth, workHeight int
+		refreshRate           int
+	}
+	var monitors []monitor
+
 	monitorCount := d3d.GetAdapterCount()
-	backBufferWidth, backBufferHeight := width, height
 	for i := uint(0); i < monitorCount; i++ {
 		if mode, err := d3d.GetAdapterDisplayMode(i); err == nil {
-			w, h := int(mode.Width), int(mode.Height)
-			if w > backBufferWidth {
-				backBufferWidth = w
-			}
-			if h > backBufferHeight {
-				backBufferHeight = h
+			if handle := w32.HMONITOR(d3d.GetAdapterMonitor(i)); handle != 0 {
+				var info w32.MONITORINFO
+				if w32.GetMonitorInfo(handle, &info) {
+					monitors = append(monitors, monitor{
+						handle:      handle,
+						width:       int(mode.Width),
+						height:      int(mode.Height),
+						workWidth:   int(info.RcWork.Width()),
+						workHeight:  int(info.RcWork.Height()),
+						workLeft:    int(info.RcWork.Left),
+						workTop:     int(info.RcWork.Top),
+						refreshRate: int(mode.RefreshRate),
+					})
+				}
 			}
 		}
 	}
 
-	// find the first monitor that is large enough to fit the window, if none is
-	// found we just use the default monitor
-	var selectedMonitor uint = d3d9.ADAPTER_DEFAULT
-	for i := uint(0); i < monitorCount; i++ {
-		mode, err := d3d.GetAdapterDisplayMode(i)
-		if err == nil && int(mode.Width) >= width && int(mode.Height) >= height {
-			selectedMonitor = i
-			break
+	// find the largest monitor so we can make our back buffer handle any
+	// fullscreen size.
+	backBufferWidth, backBufferHeight := width, height
+	for _, m := range monitors {
+		if m.width > backBufferWidth {
+			backBufferWidth = m.width
+		}
+		if m.height > backBufferHeight {
+			backBufferHeight = m.height
 		}
 	}
-	// center the window in the monitor, if any of these functions fail, x,y
-	// will simply be 0,0 which is fine in that case
-	var x, y int
-	refreshRate := 60 // default to 60 Hz in case we cannot query the monitor
-	mode, err := d3d.GetAdapterDisplayMode(selectedMonitor)
-	if err == nil {
-		if mode.RefreshRate != 0 { // 0 is some invalid default value
-			refreshRate = int(mode.RefreshRate)
-		}
-		monitor := d3d.GetAdapterMonitor(selectedMonitor)
-		if monitor != 0 {
-			var info w32.MONITORINFO
-			if w32.GetMonitorInfo(w32.HMONITOR(monitor), &info) {
-				workW := int(info.RcWork.Width())
-				workH := int(info.RcWork.Height())
-				x = int(info.RcWork.Left) + (workW-width)/2
-				y = int(info.RcWork.Top) + (workH-height)/2
+
+	// move the currently active monitor to the front of the list so it is
+	// picked before the others if it is large enough
+	if activeWindow := w32.GetForegroundWindow(); activeWindow != 0 {
+		activeMonitor := w32.MonitorFromWindow(
+			activeWindow,
+			w32.MONITOR_DEFAULTTONULL,
+		)
+		if activeMonitor != 0 {
+			for i, m := range monitors {
+				if m.handle == activeMonitor {
+					monitors[0], monitors[i] = monitors[i], monitors[0]
+				}
 			}
+		}
+	}
+
+	// find the right monitor to display the window on and center the window in
+	// it, if none is found, x,y will simply be 0,0 which is fine in that case
+	refreshRate := 60 // default to 60 Hz in case we cannot query the monitor
+	var x, y int
+	for _, m := range monitors {
+		if m.workWidth >= width && m.workHeight >= height {
+			x = m.workLeft + (m.workWidth-width)/2
+			y = m.workTop + (m.workHeight-height)/2
+			if m.refreshRate != 0 {
+				refreshRate = m.refreshRate
+			}
+			break
 		}
 	}
 
