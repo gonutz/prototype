@@ -269,7 +269,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 				var wasUpdated bool
 				for nextUpdate > 0 {
 					// clear the screen to black before the update
-					globalWindow.FillRect(0, 0, width, height, Black)
+					w, h := globalWindow.Size()
+					globalWindow.FillRect(0, 0, w, h, Black)
 					update(globalWindow)
 					wasUpdated = true
 					nextUpdate -= 1
