@@ -272,6 +272,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// refresh rate, then compensate for it
 
 	deviceIsLost := false
+	defer setShowCursorCountTo(0)
 
 	var msg w32.MSG
 	w32.PeekMessage(&msg, 0, 0, 0, w32.PM_NOREMOVE)
@@ -459,15 +460,6 @@ func (w *window) SetFullscreen(f bool) {
 		disableFullscreen(w.handle, w.windowed)
 	}
 
-	// On Windows 10, going into fullscreen mode will hide the mouse cursor but
-	// we want to not change it without the user having called ShowCursor, that
-	// is why we revert to the last user-set value.
-	if w.cursorHidden {
-		setShowCursorCountTo(-1)
-	} else {
-		setShowCursorCountTo(0)
-	}
-
 	w.isFullscreen = f
 }
 
@@ -520,7 +512,6 @@ func enableFullscreen(window w32.HWND) (windowed w32.WINDOWPLACEMENT) {
 			w32.SWP_NOOWNERZORDER|w32.SWP_FRAMECHANGED,
 		)
 	}
-	w32.ShowCursor(false)
 	return
 }
 
@@ -535,7 +526,6 @@ func disableFullscreen(window w32.HWND, placement w32.WINDOWPLACEMENT) {
 		w32.SWP_NOMOVE|w32.SWP_NOSIZE|w32.SWP_NOZORDER|
 			w32.SWP_NOOWNERZORDER|w32.SWP_FRAMECHANGED,
 	)
-	w32.ShowCursor(true)
 }
 
 func (w *window) WasKeyPressed(key Key) bool {
