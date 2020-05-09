@@ -13,5 +13,5 @@ func runeToFont(r rune) rune {
 			return rune(128 + i)
 		}
 	}
-	return '?' // character not found
+	return 0 // character not found
 }
