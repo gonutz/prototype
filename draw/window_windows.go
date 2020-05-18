@@ -704,19 +704,35 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 }
 
 func (w *window) DrawImageFile(path string, x, y int) error {
-	return w.renderImage(path, x, y, -1, -1, 0)
+	return w.renderImage(path, x, y, 0, 0, 0, 0, 0, 0, 0)
 }
 
 func (w *window) DrawImageFileRotated(path string, x, y, degrees int) error {
-	return w.renderImage(path, x, y, -1, -1, degrees)
+	return w.renderImage(path, x, y, 0, 0, 0, 0, 0, 0, degrees)
 }
 
 func (w *window) DrawImageFileTo(path string, x, y, width, height, degrees int) error {
-	if width <= 0 || height <= 0 {
+	if width == 0 || height == 0 {
 		return nil
 	}
+	return w.renderImage(path, x, y, width, height, 0, 0, 0, 0, degrees)
+}
 
-	return w.renderImage(path, x, y, width, height, degrees)
+func (w *window) DrawImageFilePart(
+	path string,
+	soruceX, sourceY, sourceWidth, sourceHeight int,
+	destX, destY, destWidth, destHeight int,
+	rotationCWDeg int,
+) error {
+	if sourceWidth == 0 || sourceHeight == 0 || destWidth == 0 || destHeight == 0 {
+		return nil
+	}
+	return w.renderImage(
+		path,
+		destX, destY, destWidth, destHeight,
+		soruceX, sourceY, sourceWidth, sourceHeight,
+		rotationCWDeg,
+	)
 }
 
 func (win *window) GetTextSize(text string) (w, h int) {
@@ -940,7 +956,12 @@ type sizedTexture struct {
 	width, height int
 }
 
-func (w *window) renderImage(path string, x, y, width, height, degrees int) error {
+func (w *window) renderImage(
+	path string,
+	x, y, width, height int,
+	srcX, srcY, srcW, srcH int,
+	degrees int,
+) error {
 	if _, ok := w.textures[path]; !ok {
 		if err := w.loadTexture(path); err != nil {
 			return err
@@ -952,8 +973,12 @@ func (w *window) renderImage(path string, x, y, width, height, degrees int) erro
 		return errors.New("texture not found after loading: " + path)
 	}
 
-	if width == -1 && height == -1 {
+	if width == 0 {
 		width, height = texture.width, texture.height
+	}
+
+	if srcW == 0 {
+		srcW, srcH = texture.width, texture.height
 	}
 
 	if err := w.device.SetTexture(0, texture.texture); err != nil {
@@ -968,8 +993,12 @@ func (w *window) renderImage(path string, x, y, width, height, degrees int) erro
 	x3, y3 := -fw/2, fh/2
 	x4, y4 := fw/2, fh/2
 
-	s, c := math.Sincos(float64(degrees) / 180 * math.Pi)
-	sin, cos := float32(s), float32(c)
+	var sin, cos float32 = 0, 1
+	if degrees != 0 {
+		s, c := math.Sincos(float64(degrees) / 180 * math.Pi)
+		sin, cos = float32(s), float32(c)
+	}
+
 	x1, y1 = cos*x1-sin*y1, sin*x1+cos*y1
 	x2, y2 = cos*x2-sin*y2, sin*x2+cos*y2
 	x3, y3 = cos*x3-sin*y3, sin*x3+cos*y3
@@ -977,11 +1006,17 @@ func (w *window) renderImage(path string, x, y, width, height, degrees int) erro
 
 	dx := fx + fw/2 - 0.5
 	dy := fy + fh/2 - 0.5
+
+	u1 := float32(srcX) / float32(texture.width)
+	u2 := float32(srcX+srcW) / float32(texture.width)
+	v1 := float32(srcY) / float32(texture.height)
+	v2 := float32(srcY+srcH) / float32(texture.height)
+
 	data := [...]float32{
-		x1 + dx, y1 + dy, 0, 1, col, 0, 0,
-		x2 + dx, y2 + dy, 0, 1, col, 1, 0,
-		x3 + dx, y3 + dy, 0, 1, col, 0, 1,
-		x4 + dx, y4 + dy, 0, 1, col, 1, 1,
+		x1 + dx, y1 + dy, 0, 1, col, u1, v1,
+		x2 + dx, y2 + dy, 0, 1, col, u2, v1,
+		x3 + dx, y3 + dy, 0, 1, col, u1, v2,
+		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,

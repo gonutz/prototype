@@ -105,10 +105,10 @@ type Window interface {
 
 	// DrawImageFileTo draws the image to the given screen rectangle, possibly
 	// scaling it in either direction, and rotates it around the rectangles
-	// center point by the given angle. The rotation is counterclockwise.
+	// center point by the given angle. The rotation is clockwise.
 	// If the image file is not found or has the wrong format an error is
 	// returned.
-	DrawImageFileTo(path string, x, y, w, h, degrees int) error
+	DrawImageFileTo(path string, x, y, w, h, rotationCWDeg int) error
 
 	// DrawImageFileRotated draws the image with its top-left corner at the
 	// given coordinates but roatated clockwise about the given angle in degrees
@@ -116,7 +116,30 @@ type Window interface {
 	// at the given location if the rotation is 0.
 	// If the image file is not found or has the wrong format an error is
 	// returned.
-	DrawImageFileRotated(path string, x, y, degrees int) error
+	DrawImageFileRotated(path string, x, y, rotationCWDeg int) error
+
+	// DrawImageFilePart lets you specify the source and destination rectangle
+	// for the image file to be drawn. The image is rotated about its center by
+	// the given angle in degrees, clockwise. You may flip the image by
+	// specifying a negative width or height. E.g. to flip in x direction,
+	// instead of
+	//
+	//     DrawImageFilePart("x.png", 0, 0, 100, 100, 0, 0, 100, 100, 0)
+	//
+	// you would do
+	//
+	//     DrawImageFilePart("x.png", 100, 0, -100, 100, 0, 0, 100, 100, 0)
+	//
+	// swapping the source rectangle's left and right positions.
+	//
+	// If the image file is not found or has the wrong format an error is
+	// returned.
+	DrawImageFilePart(
+		path string,
+		soruceX, sourceY, sourceWidth, sourceHeight int,
+		destX, destY, destWidth, destHeight int,
+		rotationCWDeg int,
+	) error
 
 	// GetTextSize returns the size the given text would have when being drawn.
 	GetTextSize(text string) (w, h int)
