@@ -8,17 +8,24 @@ Simply prototype 2D games using an easy, minimal interface that lets you draw si
 Installation
 ------------
 
-First you need to install the Go programming language from [this link](https://golang.org/dl/). After clicking the download link you will be referred to the installation instructions for your specific operating system. Follow these instructions so you have the GOROOT and GOPATH environment variables set in your system.
+Install the [Go programming language](https://golang.org/dl/). After clicking the download link you will be referred to the installation instructions for your specific operating system.
 
-You of course also need git (for Windows, get it from [here](https://git-scm.com/downloads)).
+Install [Git](https://git-scm.com/downloads) and make it available in the PATH so the go tool can use it.
 
-If you use Linux or OS X you need a C compiler installed. On Windows, this is not necessary. If you are on Linux you probably already have GCC installed.
+For Linux and OS X you need a C compiler installed. On Windows this is not necessary.
 
-After installing all the tools you are ready to install this library and finally start prototyping. From the command line run:
+On Linux there are two backends available, GLFW and SDL2. For GLFW you need these libraries installed (tested on Linux Mint, other distros might be slightly different):
+
+`libx11-dev libxrandr-dev libgl1-mesa-dev libxcursor-dev libxinerama-dev libxi-dev`
+
+GLFW is used by default. To use SDL2 you need to add `-tags sdl2` to your Go builds, e.g. `go run -tags sdl2 main.go`. Also you need the SDL2 libraries installed:
+
+`libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev`
+
+
+Install the library and samples by running the following on your command line:
 
 	go get github.com/gonutz/prototype/...
-
-This will install and build the library and also the sample games.
 
 Documentation
 -------------
