@@ -407,16 +407,36 @@ func (win *window) DrawImageFileTo(path string, x, y, w, h, degrees int) error {
 	return nil
 }
 
-func (w *window) DrawImageFilePortion(path string, srcX, srcY, srcW, srcH, toX, toY int) error {
+func (w *window) DrawImageFilePart(
+	path string,
+	sourceX, sourceY, sourceWidth, sourceHeight int,
+	destX, destY, destWidth, destHeight int,
+	rotationCWDeg int,
+) error {
 	w.loadImageIfNecessary(path)
 	img := w.textures[path]
 	if img == nil {
 		return errors.New(`File "` + path + `" could not be loaded.`)
 	}
-	w.renderer.Copy(
+	var flip sdl.RendererFlip
+	if sourceWidth < 0 {
+		flip |= sdl.FLIP_HORIZONTAL
+		sourceX += sourceWidth
+		sourceWidth = -sourceWidth
+	}
+	if sourceHeight < 0 {
+		flip |= sdl.FLIP_VERTICAL
+		sourceY += sourceHeight
+		sourceHeight = -sourceHeight
+	}
+	w.renderer.CopyEx(
 		img,
-		&sdl.Rect{int32(srcX), int32(srcY), int32(srcW), int32(srcH)},
-		&sdl.Rect{int32(toX), int32(toY), int32(srcW), int32(srcH)})
+		&sdl.Rect{int32(sourceX), int32(sourceY), int32(sourceWidth), int32(sourceHeight)},
+		&sdl.Rect{int32(destX), int32(destY), int32(destWidth), int32(destHeight)},
+		float64(rotationCWDeg),
+		nil,
+		flip,
+	)
 	return nil
 }
 

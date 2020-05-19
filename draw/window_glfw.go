@@ -485,6 +485,67 @@ func (w *window) DrawImageFileTo(path string, x, y, width, height, degrees int) 
 	return nil
 }
 
+func (w *window) DrawImageFilePart(
+	path string,
+	sourceX, sourceY, sourceWidth, sourceHeight int,
+	destX, destY, destWidth, destHeight int,
+	rotationCWDeg int,
+) error {
+	tex, err := w.getOrLoadTexture(path)
+	if err != nil {
+		return err
+	}
+
+	x1, y1 := float32(destX), float32(destY)
+	x2, y2 := float32(destX+destWidth), float32(destY+destHeight)
+	cx, cy := x1+float32(destWidth)/2, y1+float32(destHeight)/2
+	sin, cos := math.Sincos(float64(rotationCWDeg) / 180 * math.Pi)
+	sin32, cos32 := float32(sin), float32(cos)
+	p := [4]pointf{
+		{x1, y1},
+		{x2, y1},
+		{x2, y2},
+		{x1, y2},
+	}
+	for i := range p {
+		p[i].x, p[i].y = p[i].x-cx, p[i].y-cy
+		p[i].x, p[i].y = cos32*p[i].x-sin32*p[i].y, sin32*p[i].x+cos32*p[i].y
+		p[i].x, p[i].y = p[i].x+cx, p[i].y+cy
+	}
+
+	u0 := float32(sourceX) / float32(tex.w)
+	u1 := float32(sourceX+sourceWidth) / float32(tex.w)
+	v0 := float32(sourceY) / float32(tex.h)
+	v1 := float32(sourceY+sourceHeight) / float32(tex.h)
+
+	gl.Enable(gl.TEXTURE_2D)
+	gl.BindTexture(gl.TEXTURE_2D, tex.id)
+	gl.Begin(gl.QUADS)
+
+	gl.Color4f(1, 1, 1, 1)
+	gl.TexCoord2f(u0, v0)
+	gl.Vertex2f(p[0].x, p[0].y)
+
+	gl.Color4f(1, 1, 1, 1)
+	gl.TexCoord2f(u1, v0)
+	gl.Vertex2f(p[1].x, p[1].y)
+
+	gl.Color4f(1, 1, 1, 1)
+	gl.TexCoord2f(u1, v1)
+	gl.Vertex2f(p[2].x, p[2].y)
+
+	gl.Color4f(1, 1, 1, 1)
+	gl.TexCoord2f(u0, v1)
+	gl.Vertex2f(p[3].x, p[3].y)
+
+	gl.End()
+	gl.Disable(gl.TEXTURE_2D)
+
+	return nil
+
+	return nil
+}
+
 type pointf struct{ x, y float32 }
 
 func (w *window) GetTextSize(text string) (width, height int) {
