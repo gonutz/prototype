@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/gonutz/prototype/draw"
 	"math"
 	"os"
 	"path/filepath"
+
+	"github.com/gonutz/prototype/draw"
 )
 
 func main() {
@@ -109,7 +110,8 @@ func main() {
 }
 
 func resourcePath(filename string) string {
-	projectPath := filepath.Join(os.Getenv("GOPATH"), "src", "github.com", "gonutz", "prototype", "samples", "shooter")
+	// projectPath := filepath.Join(os.Getenv("GOPATH"), "src", "github.com", "gonutz", "prototype", "samples", "shooter")
+	projectPath, _ := os.Getwd()
 	return filepath.Join(projectPath, filename)
 }
 
