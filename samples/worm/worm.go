@@ -2,19 +2,30 @@ package main
 
 import (
 	"fmt"
-	"github.com/gonutz/prototype/draw"
 	"math/rand"
 	"time"
+
+	"github.com/gonutz/prototype/draw"
 )
 
-const tileSize = 20
-const mapSize = 13
-const windowSize = tileSize * mapSize
+const (
+	tileSize     = 20
+	mapSize      = 13
+	windowSize   = tileSize * mapSize
+	minMoveDelay = 5
+)
 
 func main() {
-	var frame int
-	var theSnake *snake
-	var cookie point
+	var (
+		frame     int
+		theSnake  *snake
+		cookie    point
+		score     int
+		moveDelay int
+		nextMove  int
+		gameOver  bool
+	)
+
 	var resetCookie func()
 	resetCookie = func() {
 		cookie = point{rand.Intn(mapSize), rand.Intn(mapSize)}
@@ -24,11 +35,7 @@ func main() {
 			}
 		}
 	}
-	var score int
-	var moveDelay int
-	const minMoveDelay = 5
-	var nextMove int
-	var gameOver bool
+
 	resetGame := func() {
 		rand.Seed(time.Now().UnixNano())
 		frame = 0
@@ -38,76 +45,73 @@ func main() {
 				{center - 1, center},
 				{center, center},
 				{center + 1, center},
-			}}
+			},
+		}
 		resetCookie()
 		score = 0
 		moveDelay = 10
 		nextMove = moveDelay
 		gameOver = false
 	}
-
 	resetGame()
 
-	mainErr := draw.RunWindow("Eat everything", windowSize, windowSize+tileSize,
-		func(window draw.Window) {
+	err := draw.RunWindow("Eat everything", windowSize, windowSize+tileSize, func(window draw.Window) {
+		if window.WasKeyPressed(draw.KeyEscape) {
+			window.Close()
+		}
+		if window.WasKeyPressed(draw.KeyN) {
+			resetGame()
+		}
 
-			if window.WasKeyPressed(draw.KeyEscape) {
-				window.Close()
+		if !gameOver {
+			if window.WasKeyPressed(draw.KeyLeft) {
+				theSnake.setVelocity(-1, 0)
 			}
-			if window.WasKeyPressed(draw.KeyEnter) {
-				resetGame()
-				return
+			if window.WasKeyPressed(draw.KeyRight) {
+				theSnake.setVelocity(1, 0)
 			}
-
-			if !gameOver {
-				if window.WasKeyPressed(draw.KeyLeft) {
-					theSnake.setVelocity(-1, 0)
-				}
-				if window.WasKeyPressed(draw.KeyRight) {
-					theSnake.setVelocity(1, 0)
-				}
-				if window.WasKeyPressed(draw.KeyDown) {
-					theSnake.setVelocity(0, 1)
-				}
-				if window.WasKeyPressed(draw.KeyUp) {
-					theSnake.setVelocity(0, -1)
-				}
-
-				nextMove--
-				if nextMove <= 0 {
-					theSnake.move(cookie)
-					nextMove = moveDelay
-				}
-
-				if theSnake.head() == cookie {
-					resetCookie()
-					score++
-					if score%10 == 0 {
-						moveDelay--
-					}
-					if moveDelay < minMoveDelay {
-						moveDelay = minMoveDelay
-					}
-				}
-
-				if theSnake.bitItself() {
-					gameOver = true
-				}
-				frame++
+			if window.WasKeyPressed(draw.KeyDown) {
+				theSnake.setVelocity(0, 1)
+			}
+			if window.WasKeyPressed(draw.KeyUp) {
+				theSnake.setVelocity(0, -1)
 			}
 
-			window.FillRect(0, 0, windowSize, windowSize, draw.LightGreen)
-			theSnake.draw(window, frame)
-			drawCookie(cookie, window)
-			drawScore(window, score)
-			if gameOver {
-				window.DrawScaledText(" Game Over!\npress  ENTER\n to restart", 25, 80, 2.0, draw.White)
+			nextMove--
+			if nextMove <= 0 {
+				theSnake.move(cookie)
+				nextMove = moveDelay
 			}
 
-		})
+			if theSnake.head() == cookie {
+				resetCookie()
+				score++
+				if score%10 == 0 {
+					moveDelay--
+				}
+				if moveDelay < minMoveDelay {
+					moveDelay = minMoveDelay
+				}
+			}
 
-	if mainErr != nil {
-		panic(mainErr)
+			if theSnake.bitItself() {
+				gameOver = true
+			}
+			frame++
+		}
+
+		window.FillRect(0, 0, windowSize, windowSize, draw.LightGreen)
+		theSnake.draw(window, frame)
+		drawCookie(cookie, window)
+		drawScore(window, score)
+		if gameOver {
+			window.DrawScaledText(" Game Over!\n  press N\n to restart", 25, 80, 2.0, draw.White)
+		}
+
+	})
+
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -233,6 +237,8 @@ func drawScore(window draw.Window, score int) {
 	if score == 1 {
 		cookieText = "cookie"
 	}
-	window.DrawText(fmt.Sprintf("You ate %v %v", score, cookieText),
-		10, windowSize+2, draw.White)
+	window.DrawText(
+		fmt.Sprintf("You ate %v %v", score, cookieText),
+		10, windowSize+2, draw.White,
+	)
 }
