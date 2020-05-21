@@ -1,109 +1,107 @@
 package main
 
 import (
-	"flag"
-	"fmt"
-	"github.com/gonutz/prototype/draw"
 	"math"
-	"os"
-	"path/filepath"
+	"strconv"
+
+	"github.com/gonutz/prototype/draw"
+)
+
+const (
+	windowWidth, windowHeight = 640, 480
+	ballSpeed                 = 8
+	panelSpeed                = 7
+	ballRadius                = 5
 )
 
 func main() {
-	speed := flag.Float64("speed", 1.0, "The regular speed is multiplied by this factor")
-	flag.Parse()
-	if *speed < 0.01 {
-		*speed = 0.01
-	}
-	if *speed > 100 {
-		*speed = 100
-	}
+	var (
+		leftPanel  rect
+		rightPanel rect
+		ball       circle
+		leftScore  int
+		rightScore int
+	)
 
-	var leftPanel, rightPanel *rect
-	var ball *circle
-	var resetAfterScore = func(ballVelocitySign float32) {
-		ball = &circle{
-			320, 240, 5,
-			float32(*speed) * ballVelocitySign * 8.0, 0.0,
+	resetAfterScore := func(ballVelocitySign float32) {
+		ball = circle{
+			centerX: windowWidth / 2,
+			centerY: windowHeight / 2,
+			radius:  ballRadius,
+			vx:      ballVelocitySign * ballSpeed,
+			vy:      0.0,
 		}
-		leftPanel = &rect{10, 200, 10, 80}
-		rightPanel = &rect{620, 200, 10, 80}
+		leftPanel = rect{10, windowHeight/2 - 40, 10, 80}
+		rightPanel = rect{windowWidth - 20, windowHeight/2 - 40, 10, 80}
 	}
 	resetAfterScore(1.0)
-	leftScore := 0
-	rightScore := 0
-	samplesPath := filepath.Join(os.Getenv("GOPATH"), "src", "github.com", "gonutz", "prototype", "samples")
-	scoreSound := filepath.Join(samplesPath, "tennis", "score.wav")
-	panelBounceSound := filepath.Join(samplesPath, "tennis", "bounce.wav")
-	wallBounceSound := filepath.Join(samplesPath, "tennis", "bounce2.wav")
 
-	mainErr := draw.RunWindow("Tennis - press N to restart", 640, 480,
-		func(window draw.Window) {
+	const title = "Tennis - press N to restart"
+	err := draw.RunWindow(title, windowWidth, windowHeight, func(window draw.Window) {
+		if window.WasKeyPressed(draw.KeyEscape) {
+			window.Close()
+		}
 
-			if window.WasKeyPressed(draw.KeyEscape) {
-				window.Close()
-			}
+		if window.WasKeyPressed(draw.KeyN) {
+			resetAfterScore(1.0)
+			leftScore = 0
+			rightScore = 0
+			return
+		}
 
-			if window.WasKeyPressed(draw.KeyN) {
-				resetAfterScore(1.0)
-				leftScore = 0
-				rightScore = 0
-				return
-			}
+		if window.IsKeyDown(draw.KeyDown) {
+			rightPanel.y += panelSpeed
+		}
+		if window.IsKeyDown(draw.KeyUp) {
+			rightPanel.y -= panelSpeed
+		}
+		if window.IsKeyDown(draw.KeyLeftControl) {
+			leftPanel.y += panelSpeed
+		}
+		if window.IsKeyDown(draw.KeyLeftShift) {
+			leftPanel.y -= panelSpeed
+		}
+		leftPanel.clampInY()
+		rightPanel.clampInY()
 
-			const dy = 7
-			if window.IsKeyDown(draw.KeyDown) {
-				rightPanel.y += dy
+		// Move the ball not all at once, split it and check for collisions
+		// each time. This way we will not warp through obstacles.
+		timeDivision := ballSpeed / 10
+		if timeDivision == 0 {
+			timeDivision = 1
+		}
+		for i := 0; i < timeDivision; i++ {
+			ball.move(1.0 / float32(timeDivision))
+			if ball.collideLeft(&leftPanel) || ball.collideRight(&rightPanel) {
+				window.PlaySoundFile("bounce.wav")
 			}
-			if window.IsKeyDown(draw.KeyUp) {
-				rightPanel.y -= dy
+			if ball.collideWall() {
+				window.PlaySoundFile("bounce2.wav")
 			}
-			if window.IsKeyDown(draw.KeyLeftControl) {
-				leftPanel.y += dy
-			}
-			if window.IsKeyDown(draw.KeyLeftShift) {
-				leftPanel.y -= dy
-			}
-			keepInYBounds(leftPanel, 480)
-			keepInYBounds(rightPanel, 480)
+		}
 
-			timeDivision := 4
-			if *speed > 1.0 {
-				timeDivision = int(float64(timeDivision) * *speed)
-			}
-			for i := 0; i < timeDivision; i++ {
-				ball.move(1.0 / float32(timeDivision))
-				if ball.collideLeft(leftPanel) || ball.collideRight(rightPanel) {
-					window.PlaySoundFile(panelBounceSound)
-				}
-				if ball.collideWall(480) {
-					window.PlaySoundFile(wallBounceSound)
-				}
-			}
+		if ball.isInLeftGoal() {
+			rightScore++
+			window.PlaySoundFile("score.wav")
+			resetAfterScore(1.0)
+		}
+		if ball.isInRightGoal() {
+			leftScore++
+			window.PlaySoundFile("score.wav")
+			resetAfterScore(-1.0)
+		}
 
-			if ball.isInLeftGoal() {
-				rightScore++
-				window.PlaySoundFile(scoreSound)
-				resetAfterScore(1.0)
-			}
-			if ball.isInRightGoal(640) {
-				leftScore++
-				window.PlaySoundFile(scoreSound)
-				resetAfterScore(-1.0)
-			}
+		window.FillRect(0, 0, windowWidth, windowHeight, draw.DarkGreen)
+		window.DrawRect(50, 50, windowWidth-100, windowHeight-100, draw.LightGreen)
+		window.DrawLine(windowWidth/2, 50, windowWidth/2, windowHeight-50, draw.LightGreen)
+		leftPanel.draw(window)
+		rightPanel.draw(window)
+		ball.draw(window)
+		drawScore(leftScore, rightScore, window)
+	})
 
-			window.FillRect(0, 0, 640, 480, draw.DarkGreen)
-			window.DrawRect(50, 50, 540, 380, draw.LightGreen)
-			window.DrawLine(320, 50, 320, 429, draw.LightGreen)
-			leftPanel.draw(window)
-			rightPanel.draw(window)
-			ball.draw(window)
-			drawScore(leftScore, rightScore, window)
-
-		})
-
-	if mainErr != nil {
-		panic(mainErr)
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -111,9 +109,18 @@ type rect struct {
 	x, y, w, h int
 }
 
-func (r *rect) draw(window draw.Window) {
+func (r rect) draw(window draw.Window) {
 	window.FillRect(r.x, r.y, r.w, r.h, draw.White)
 	window.DrawRect(r.x, r.y, r.w, r.h, draw.Black)
+}
+
+func (r *rect) clampInY() {
+	if r.y < 0 {
+		r.y = 0
+	}
+	if r.y+r.h >= windowHeight {
+		r.y = windowHeight - r.h
+	}
 }
 
 type circle struct {
@@ -123,8 +130,8 @@ type circle struct {
 }
 
 func (c *circle) draw(window draw.Window) {
-	x := int(c.centerX) - c.radius
-	y := int(c.centerY) - c.radius
+	x := int(c.centerX+0.5) - c.radius
+	y := int(c.centerY+0.5) - c.radius
 	size := 2 * c.radius
 	window.FillEllipse(x, y, size, size, draw.White)
 	window.DrawEllipse(x, y, size, size, draw.Black)
@@ -136,14 +143,15 @@ func (c *circle) move(dt float32) {
 }
 
 func (c *circle) collideLeft(r *rect) bool {
-	if c.vx > 0 {
-		return false
-	}
-	return c.collide(r, r.x+r.w)
+	return c.vx < 0 && c.collide(r, r.x+r.w)
+}
+
+func (c *circle) collideRight(r *rect) bool {
+	return c.vx > 0 && c.collide(r, r.x)
 }
 
 func (c *circle) collide(r *rect, x int) bool {
-	cx, cy := int(c.centerX), int(c.centerY)
+	cx, cy := int(c.centerX+0.5), int(c.centerY+0.5)
 	r2 := c.radius * c.radius
 	pointInCircle := func(x, y int) bool {
 		return (x-cx)*(x-cx)+(y-cy)*(y-cy) <= r2
@@ -158,10 +166,10 @@ func (c *circle) collide(r *rect, x int) bool {
 	return false
 }
 
-func (c *circle) shiftAngle(heightPercentag float32) {
+func (c *circle) shiftAngle(heightPercent float32) {
 	length := math.Sqrt(float64(c.vx*c.vx + c.vy*c.vy))
-	angle := float64(0.4*math.Pi - 0.8*math.Pi*heightPercentag)
-	if heightPercentag >= 0.4 && heightPercentag <= 0.6 {
+	angle := float64(0.4*math.Pi - 0.8*math.Pi*heightPercent)
+	if heightPercent >= 0.4 && heightPercent <= 0.6 {
 		angle = 0.0
 	}
 	dx, dy := math.Cos(angle), -math.Sin(angle)
@@ -172,16 +180,9 @@ func (c *circle) shiftAngle(heightPercentag float32) {
 	c.vy = float32(dy * length)
 }
 
-func (c *circle) collideRight(r *rect) bool {
-	if c.vx < 0 {
-		return false
-	}
-	return c.collide(r, r.x)
-}
-
-func (c *circle) collideWall(height int) bool {
+func (c *circle) collideWall() bool {
 	if c.centerY < float32(c.radius) ||
-		c.centerY+float32(c.radius) >= float32(height) {
+		c.centerY+float32(c.radius) >= windowHeight {
 		c.vy = -c.vy
 		return true
 	}
@@ -192,21 +193,13 @@ func (c *circle) isInLeftGoal() bool {
 	return c.centerX < float32(-c.radius)
 }
 
-func (c *circle) isInRightGoal(width int) bool {
-	return c.centerX > float32(width+c.radius)
-}
-
-func keepInYBounds(r *rect, height int) {
-	if r.y < 0 {
-		r.y = 0
-	}
-	if r.y+r.h >= height {
-		r.y = height - r.h
-	}
+func (c *circle) isInRightGoal() bool {
+	return c.centerX > float32(windowWidth+c.radius)
 }
 
 func drawScore(left, right int, window draw.Window) {
-	l, r := fmt.Sprintf("%v", left), fmt.Sprintf("%v", right)
+	// Pad scores with spaces to make it center align right.
+	l, r := strconv.Itoa(left), strconv.Itoa(right)
 	for len(l) < 5 {
 		l = " " + l
 	}
@@ -216,5 +209,5 @@ func drawScore(left, right int, window draw.Window) {
 	scoreText := l + " : " + r
 	const scale = 2.0
 	w, _ := window.GetScaledTextSize(scoreText, scale)
-	window.DrawScaledText(scoreText, 320-w/2+1, 10, scale, draw.Black)
+	window.DrawScaledText(scoreText, (windowWidth-w)/2+1, 10, scale, draw.Black)
 }
