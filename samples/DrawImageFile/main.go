@@ -30,7 +30,7 @@ func main() {
 			// on the current frame time to make a walk animation.
 			window.DrawText("Push it!", 160, 255, draw.White)
 			color := draw.DarkGreen
-			color.G -= 10
+			color.G *= 0.9
 			window.FillRect(0, 275, 500, tileH, color)
 			window.DrawImageFilePart(
 				"caveman.png",
