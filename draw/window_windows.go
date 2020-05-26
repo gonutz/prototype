@@ -24,10 +24,6 @@ import (
 	"github.com/gonutz/w32"
 )
 
-func init() {
-	runtime.LockOSThread()
-}
-
 const (
 	vertexFormat = d3d9.FVF_XYZRHW | d3d9.FVF_DIFFUSE | d3d9.FVF_TEX1
 	vertexStride = 28
@@ -45,6 +41,9 @@ var (
 )
 
 func RunWindow(title string, width, height int, update UpdateFunction) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	defer func() {
 		windowOpenMutex.Lock()
 		windowIsOpen = false
