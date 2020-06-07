@@ -136,7 +136,7 @@ type Window interface {
 	// returned.
 	DrawImageFilePart(
 		path string,
-		soruceX, sourceY, sourceWidth, sourceHeight int,
+		sourceX, sourceY, sourceWidth, sourceHeight int,
 		destX, destY, destWidth, destHeight int,
 		rotationCWDeg int,
 	) error

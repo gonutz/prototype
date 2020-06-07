@@ -719,7 +719,7 @@ func (w *window) DrawImageFileTo(path string, x, y, width, height, degrees int) 
 
 func (w *window) DrawImageFilePart(
 	path string,
-	soruceX, sourceY, sourceWidth, sourceHeight int,
+	sourceX, sourceY, sourceWidth, sourceHeight int,
 	destX, destY, destWidth, destHeight int,
 	rotationCWDeg int,
 ) error {
