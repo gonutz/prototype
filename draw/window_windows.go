@@ -729,7 +729,7 @@ func (w *window) DrawImageFilePart(
 	return w.renderImage(
 		path,
 		destX, destY, destWidth, destHeight,
-		soruceX, sourceY, sourceWidth, sourceHeight,
+		sourceX, sourceY, sourceWidth, sourceHeight,
 		rotationCWDeg,
 	)
 }
