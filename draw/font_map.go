@@ -7,7 +7,7 @@ func runeToFont(r rune) rune {
 	if 0 <= r && r <= 127 {
 		return r
 	}
-	from128 := []rune("ÇüéâäàåçêëèÏÎÌÄÅÈæÖöÜß")
+	from128 := []rune("ÇüéâäàåçêëèÏÎÌÄÅÈæÖöÜß§²³")
 	for i, s := range from128 {
 		if r == s {
 			return rune(128 + i)
