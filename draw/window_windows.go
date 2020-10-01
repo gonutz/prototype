@@ -499,7 +499,7 @@ func enableFullscreen(window w32.HWND) (windowed w32.WINDOWPLACEMENT) {
 		w32.SetWindowLong(
 			window,
 			w32.GWL_STYLE,
-			uint32(style & ^w32.WS_OVERLAPPEDWINDOW),
+			style & ^w32.WS_OVERLAPPEDWINDOW,
 		)
 		w32.SetWindowPos(
 			window,
