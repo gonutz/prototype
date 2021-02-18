@@ -603,36 +603,26 @@ func (w *window) flushBacklog() {
 
 	switch w.backlogType {
 	case points:
-		if err := w.device.DrawPrimitiveUP(
-			d3d9.PT_POINTLIST,
-			uint(len(w.backlog)/(vertexStride/4)),
-			uintptr(unsafe.Pointer(&w.backlog[0])),
-			vertexStride,
-		); err != nil {
-			w.d3d9Error = err
-		}
+		w.drawBacklog(d3d9.PT_POINTLIST, 1)
 	case rectangles:
-		if err := w.device.DrawPrimitiveUP(
-			d3d9.PT_TRIANGLELIST,
-			uint(len(w.backlog)/(3*vertexStride/4)),
-			uintptr(unsafe.Pointer(&w.backlog[0])),
-			vertexStride,
-		); err != nil {
-			w.d3d9Error = err
-		}
+		w.drawBacklog(d3d9.PT_TRIANGLELIST, 3)
 	case lines:
-		if err := w.device.DrawPrimitiveUP(
-			d3d9.PT_LINELIST,
-			uint(len(w.backlog)/(2*vertexStride/4)),
-			uintptr(unsafe.Pointer(&w.backlog[0])),
-			vertexStride,
-		); err != nil {
-			w.d3d9Error = err
-		}
+		w.drawBacklog(d3d9.PT_LINELIST, 2)
 	}
 
 	w.backlog = w.backlog[:0]
 	w.backlogType = nothing
+}
+
+func (w *window) drawBacklog(primitive d3d9.PRIMITIVETYPE, verticesPerPrimitive int) {
+	if err := w.device.DrawPrimitiveUP(
+		primitive,
+		uint(len(w.backlog)/(verticesPerPrimitive*vertexStride/4)),
+		uintptr(unsafe.Pointer(&w.backlog[0])),
+		vertexStride,
+	); err != nil {
+		w.d3d9Error = err
+	}
 }
 
 func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
