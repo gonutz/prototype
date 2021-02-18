@@ -299,8 +299,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 					w, h := globalWindow.Size()
 					globalWindow.FillRect(0, 0, w, h, Black)
 					update(globalWindow)
-					globalWindow.flushRects()
-					globalWindow.flushPoints()
+					globalWindow.flushBacklog()
 					wasUpdated = true
 					nextUpdate -= 1
 				}
@@ -377,9 +376,17 @@ type window struct {
 	sounds       map[string]mixer.SoundSource
 	text         string
 	textures     map[string]sizedTexture
-	rects        []float32
-	points       []float32
+	backlog      []float32
+	backlogType  shape
 }
+
+type shape int
+
+const (
+	nothing shape = iota
+	rectangles
+	points
+)
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 	switch msg {
@@ -575,44 +582,47 @@ func (w *window) MouseWheelY() float64 {
 }
 
 func (w *window) DrawPoint(x, y int, color Color) {
-	w.flushRects()
-	w.points = append(w.points,
+	w.addBacklog(points,
 		float32(x), float32(y), 0, 1, colorToFloat32(color), 0, 0,
 	)
 }
 
-func (w *window) flushPoints() {
-	if len(w.points) == 0 {
-		return
+func (w *window) addBacklog(typ shape, data ...float32) {
+	if typ != w.backlogType {
+		w.flushBacklog()
 	}
-
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_POINTLIST,
-		uint(len(w.points)/(vertexStride/4)),
-		uintptr(unsafe.Pointer(&w.points[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
-
-	w.points = w.points[:0]
+	w.backlog = append(w.backlog, data...)
+	w.backlogType = typ
 }
 
-func (w *window) flushRects() {
-	if len(w.rects) == 0 {
+func (w *window) flushBacklog() {
+	if len(w.backlog) == 0 {
 		return
 	}
 
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_TRIANGLELIST,
-		uint(len(w.rects)/(3*vertexStride/4)),
-		uintptr(unsafe.Pointer(&w.rects[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
+	switch w.backlogType {
+	case points:
+		if err := w.device.DrawPrimitiveUP(
+			d3d9.PT_POINTLIST,
+			uint(len(w.backlog)/(vertexStride/4)),
+			uintptr(unsafe.Pointer(&w.backlog[0])),
+			vertexStride,
+		); err != nil {
+			w.d3d9Error = err
+		}
+	case rectangles:
+		if err := w.device.DrawPrimitiveUP(
+			d3d9.PT_TRIANGLELIST,
+			uint(len(w.backlog)/(3*vertexStride/4)),
+			uintptr(unsafe.Pointer(&w.backlog[0])),
+			vertexStride,
+		); err != nil {
+			w.d3d9Error = err
+		}
 	}
 
-	w.rects = w.rects[:0]
+	w.backlog = w.backlog[:0]
+	w.backlogType = nothing
 }
 
 func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
@@ -628,8 +638,7 @@ func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
 		fx, fy, 0, 1, col, 0, 0,
 		fx2, fy2, 0, 1, col, 0, 0,
 	}
-	w.flushRects()
-	w.flushPoints()
+	w.flushBacklog()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		1,
@@ -660,7 +669,7 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 	var col float32 = *(*float32)(unsafe.Pointer(&d3dColor))
 	fx, fy := float32(x), float32(y)
 	fx2, fy2 := float32(x+width), float32(y+height)
-	w.rects = append(w.rects,
+	w.addBacklog(rectangles,
 		fx, fy, 0, 1, col, 0, 0,
 		fx2, fy, 0, 1, col, 0, 0,
 		fx, fy2, 0, 1, col, 0, 0,
@@ -677,10 +686,9 @@ func (w *window) DrawEllipse(x, y, width, height int, color Color) {
 		return
 	}
 
-	w.flushRects()
 	col := colorToFloat32(color)
 	for i := range outline {
-		w.points = append(w.points,
+		w.addBacklog(points,
 			float32(outline[i].x), float32(outline[i].y), 0, 1, col, 0, 0,
 		)
 	}
@@ -708,8 +716,7 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 	for i := 8; i < len(data); i += 14 {
 		data[i-1] += 0.5
 	}
-	w.flushRects()
-	w.flushPoints()
+	w.flushBacklog()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		uint(len(area)/2),
@@ -819,8 +826,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		return
 	}
 
-	w.flushRects()
-	w.flushPoints()
+	w.flushBacklog()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLELIST,
 		charCount*2,
@@ -1037,8 +1043,7 @@ func (w *window) renderImage(
 		x3 + dx, y3 + dy, 0, 1, col, u1, v2,
 		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
-	w.flushRects()
-	w.flushPoints()
+	w.flushBacklog()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
