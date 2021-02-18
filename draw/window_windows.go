@@ -387,6 +387,7 @@ const (
 	rectangles
 	points
 	lines
+	texts
 )
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
@@ -608,6 +609,16 @@ func (w *window) flushBacklog() {
 		w.drawBacklog(d3d9.PT_TRIANGLELIST, 3)
 	case lines:
 		w.drawBacklog(d3d9.PT_LINELIST, 2)
+	case texts:
+		if err := w.device.SetTexture(0, w.textures[fontTextureID].texture); err != nil {
+			w.d3d9Error = err
+		}
+
+		w.drawBacklog(d3d9.PT_TRIANGLELIST, 3)
+
+		if err := w.device.SetTexture(0, nil); err != nil {
+			w.d3d9Error = err
+		}
 	}
 
 	w.backlog = w.backlog[:0]
@@ -761,8 +772,6 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		return
 	}
 
-	texture := w.textures[fontTextureID]
-	data := make([]float32, 0, vertexStride/4*len(text))
 	width := int(float32(fontCharW)*scale + 0.5)
 	height := int(float32(fontCharH)*scale + 0.5)
 	col := colorToFloat32(color)
@@ -782,7 +791,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		u := float32(r%16) / 16
 		v := float32(r/16) / 16
 
-		data = append(data,
+		w.addBacklog(texts,
 			float32(destX)-0.5, float32(destY)-0.5, 0, 1, col, u, v,
 			float32(destX+width)-0.5, float32(destY)-0.5, 0, 1, col, u+1.0/16, v,
 			float32(destX)-0.5, float32(destY+height)-0.5, 0, 1, col, u, v+1.0/16,
@@ -793,26 +802,6 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		)
 
 		destX += width
-	}
-
-	if err := w.device.SetTexture(0, texture.texture); err != nil {
-		w.d3d9Error = err
-		return
-	}
-
-	w.flushBacklog()
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_TRIANGLELIST,
-		charCount*2,
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
-
-	// reset the texture
-	if err := w.device.SetTexture(0, nil); err != nil {
-		w.d3d9Error = err
 	}
 }
 
