@@ -299,6 +299,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 					w, h := globalWindow.Size()
 					globalWindow.FillRect(0, 0, w, h, Black)
 					update(globalWindow)
+					globalWindow.flushRects()
 					wasUpdated = true
 					nextUpdate -= 1
 				}
@@ -375,6 +376,7 @@ type window struct {
 	sounds       map[string]mixer.SoundSource
 	text         string
 	textures     map[string]sizedTexture
+	rects        []float32
 }
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
@@ -574,6 +576,7 @@ func (w *window) DrawPoint(x, y int, color Color) {
 	data := [...]float32{
 		float32(x), float32(y), 0, 1, colorToFloat32(color), 0, 0,
 	}
+	w.flushRects()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_POINTLIST,
 		1,
@@ -597,6 +600,7 @@ func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
 		fx, fy, 0, 1, col, 0, 0,
 		fx2, fy2, 0, 1, col, 0, 0,
 	}
+	w.flushRects()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		1,
@@ -627,7 +631,7 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 	var col float32 = *(*float32)(unsafe.Pointer(&d3dColor))
 	fx, fy := float32(x), float32(y)
 	fx2, fy2 := float32(x+width), float32(y+height)
-	data := [...]float32{
+	w.rects = append(w.rects,
 		fx, fy, 0, 1, col, 0, 0,
 		fx2, fy, 0, 1, col, 0, 0,
 		fx, fy2, 0, 1, col, 0, 0,
@@ -635,15 +639,24 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 		fx, fy2, 0, 1, col, 0, 0,
 		fx2, fy2, 0, 1, col, 0, 0,
 		fx, fy, 0, 1, col, 0, 0,
+	)
+}
+
+func (w *window) flushRects() {
+	if len(w.rects) == 0 {
+		return
 	}
+
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLELIST,
-		2,
-		uintptr(unsafe.Pointer(&data[0])),
+		uint(len(w.rects)/(3*vertexStride/4)),
+		uintptr(unsafe.Pointer(&w.rects[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
 	}
+
+	w.rects = w.rects[:0]
 }
 
 func (w *window) DrawEllipse(x, y, width, height int, color Color) {
@@ -663,6 +676,7 @@ func (w *window) DrawEllipse(x, y, width, height int, color Color) {
 		data[j+5] = 0
 		data[j+6] = 0
 	}
+	w.flushRects()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_POINTLIST,
 		uint(len(outline)),
@@ -695,6 +709,7 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 	for i := 8; i < len(data); i += 14 {
 		data[i-1] += 0.5
 	}
+	w.flushRects()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		uint(len(area)/2),
@@ -804,6 +819,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		return
 	}
 
+	w.flushRects()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLELIST,
 		charCount*2,
@@ -1020,6 +1036,7 @@ func (w *window) renderImage(
 		x3 + dx, y3 + dy, 0, 1, col, u1, v2,
 		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
+	w.flushRects()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
