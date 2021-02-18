@@ -300,6 +300,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 					globalWindow.FillRect(0, 0, w, h, Black)
 					update(globalWindow)
 					globalWindow.flushRects()
+					globalWindow.flushPoints()
 					wasUpdated = true
 					nextUpdate -= 1
 				}
@@ -377,6 +378,7 @@ type window struct {
 	text         string
 	textures     map[string]sizedTexture
 	rects        []float32
+	points       []float32
 }
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
@@ -573,18 +575,44 @@ func (w *window) MouseWheelY() float64 {
 }
 
 func (w *window) DrawPoint(x, y int, color Color) {
-	data := [...]float32{
-		float32(x), float32(y), 0, 1, colorToFloat32(color), 0, 0,
-	}
 	w.flushRects()
+	w.points = append(w.points,
+		float32(x), float32(y), 0, 1, colorToFloat32(color), 0, 0,
+	)
+}
+
+func (w *window) flushPoints() {
+	if len(w.points) == 0 {
+		return
+	}
+
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_POINTLIST,
-		1,
-		uintptr(unsafe.Pointer(&data[0])),
+		uint(len(w.points)/(vertexStride/4)),
+		uintptr(unsafe.Pointer(&w.points[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
 	}
+
+	w.points = w.points[:0]
+}
+
+func (w *window) flushRects() {
+	if len(w.rects) == 0 {
+		return
+	}
+
+	if err := w.device.DrawPrimitiveUP(
+		d3d9.PT_TRIANGLELIST,
+		uint(len(w.rects)/(3*vertexStride/4)),
+		uintptr(unsafe.Pointer(&w.rects[0])),
+		vertexStride,
+	); err != nil {
+		w.d3d9Error = err
+	}
+
+	w.rects = w.rects[:0]
 }
 
 func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
@@ -601,6 +629,7 @@ func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
 		fx2, fy2, 0, 1, col, 0, 0,
 	}
 	w.flushRects()
+	w.flushPoints()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		1,
@@ -642,48 +671,18 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 	)
 }
 
-func (w *window) flushRects() {
-	if len(w.rects) == 0 {
-		return
-	}
-
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_TRIANGLELIST,
-		uint(len(w.rects)/(3*vertexStride/4)),
-		uintptr(unsafe.Pointer(&w.rects[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
-
-	w.rects = w.rects[:0]
-}
-
 func (w *window) DrawEllipse(x, y, width, height int, color Color) {
 	outline := ellipseOutline(x, y, width, height)
 	if len(outline) == 0 {
 		return
 	}
-	data := make([]float32, len(outline)*7)
+
+	w.flushRects()
 	col := colorToFloat32(color)
 	for i := range outline {
-		j := i * 7
-		data[j+0] = float32(outline[i].x)
-		data[j+1] = float32(outline[i].y)
-		data[j+2] = 0
-		data[j+3] = 1
-		data[j+4] = col
-		data[j+5] = 0
-		data[j+6] = 0
-	}
-	w.flushRects()
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_POINTLIST,
-		uint(len(outline)),
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
+		w.points = append(w.points,
+			float32(outline[i].x), float32(outline[i].y), 0, 1, col, 0, 0,
+		)
 	}
 }
 
@@ -710,6 +709,7 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 		data[i-1] += 0.5
 	}
 	w.flushRects()
+	w.flushPoints()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_LINELIST,
 		uint(len(area)/2),
@@ -820,6 +820,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	}
 
 	w.flushRects()
+	w.flushPoints()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLELIST,
 		charCount*2,
@@ -1037,6 +1038,7 @@ func (w *window) renderImage(
 		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
 	w.flushRects()
+	w.flushPoints()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
