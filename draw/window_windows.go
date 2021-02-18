@@ -386,6 +386,7 @@ const (
 	nothing shape = iota
 	rectangles
 	points
+	lines
 )
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
@@ -619,6 +620,15 @@ func (w *window) flushBacklog() {
 		); err != nil {
 			w.d3d9Error = err
 		}
+	case lines:
+		if err := w.device.DrawPrimitiveUP(
+			d3d9.PT_LINELIST,
+			uint(len(w.backlog)/(2*vertexStride/4)),
+			uintptr(unsafe.Pointer(&w.backlog[0])),
+			vertexStride,
+		); err != nil {
+			w.d3d9Error = err
+		}
 	}
 
 	w.backlog = w.backlog[:0]
@@ -632,21 +642,10 @@ func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
 	}
 
 	col := colorToFloat32(color)
-	fx, fy := float32(fromX), float32(fromY)
-	fx2, fy2 := float32(toX), float32(toY)
-	data := [...]float32{
-		fx, fy, 0, 1, col, 0, 0,
-		fx2, fy2, 0, 1, col, 0, 0,
-	}
-	w.flushBacklog()
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_LINELIST,
-		1,
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
+	w.addBacklog(lines,
+		float32(fromX), float32(fromY), 0, 1, col, 0, 0,
+		float32(toX), float32(toY), 0, 1, col, 0, 0,
+	)
 }
 
 func (w *window) DrawRect(x, y, width, height int, color Color) {
@@ -699,31 +698,16 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 	if len(area) == 0 {
 		return
 	}
+
 	col := colorToFloat32(color)
-	data := make([]float32, len(area)*7)
 	for i := range area {
-		j := i * 7
-		data[j+0] = float32(area[i].x)
-		data[j+1] = float32(area[i].y)
-		data[j+2] = 0
-		data[j+3] = 1
-		data[j+4] = col
-		data[j+5] = 0
-		data[j+6] = 0
-	}
-	// now offset every right point in each line by +0.5, otherwise they might
-	// not be fully visible
-	for i := 8; i < len(data); i += 14 {
-		data[i-1] += 0.5
-	}
-	w.flushBacklog()
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_LINELIST,
-		uint(len(area)/2),
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
+		x, y := float32(area[i].x), float32(area[i].y)
+		if i%2 == 1 {
+			// Offset every right point in each line by +0.5, otherwise they
+			// might not be fully visible.
+			x += 0.5
+		}
+		w.addBacklog(lines, x, y, 0, 1, col, 0, 0)
 	}
 }
 
