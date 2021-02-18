@@ -637,8 +637,8 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 		fx, fy2, 0, 1, col, 0, 0,
 
 		fx, fy2, 0, 1, col, 0, 0,
+		fx2, fy, 0, 1, col, 0, 0,
 		fx2, fy2, 0, 1, col, 0, 0,
-		fx, fy, 0, 1, col, 0, 0,
 	)
 }
 
