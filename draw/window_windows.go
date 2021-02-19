@@ -971,10 +971,6 @@ func (w *window) renderImage(
 		srcW, srcH = texture.width, texture.height
 	}
 
-	if err := w.device.SetTexture(0, texture.texture); err != nil {
-		return err
-	}
-
 	col := colorToFloat32(White)
 	fx, fy, fw, fh := float32(x), float32(y), float32(width), float32(height)
 
@@ -1008,6 +1004,11 @@ func (w *window) renderImage(
 		x3 + dx, y3 + dy, 0, 1, col, u1, v2,
 		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
+
+	if err := w.device.SetTexture(0, texture.texture); err != nil {
+		return err
+	}
+
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
