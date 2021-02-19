@@ -950,6 +950,8 @@ func (w *window) renderImage(
 	srcX, srcY, srcW, srcH int,
 	degrees int,
 ) error {
+	w.flushBacklog()
+
 	if _, ok := w.textures[path]; !ok {
 		if err := w.loadTexture(path); err != nil {
 			return err
@@ -1006,7 +1008,6 @@ func (w *window) renderImage(
 		x3 + dx, y3 + dy, 0, 1, col, u1, v2,
 		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
-	w.flushBacklog()
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,
