@@ -1,0 +1,9 @@
+# JetBrains
+.idea
+# Visual Studio
+.vs
+# Visual Studio Code
+.vscode
+
+# produced by go mod
+go.sum
