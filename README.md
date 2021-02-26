@@ -1,3 +1,8 @@
+UNDER CONSTRUCTION
+==================
+
+This repo is currently moving to use Go modules, this might take another day or two.
+
 prototype
 =========
 
