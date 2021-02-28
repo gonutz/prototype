@@ -21,7 +21,7 @@ import (
 	"github.com/gonutz/d3d9"
 	"github.com/gonutz/mixer"
 	"github.com/gonutz/mixer/wav"
-	"github.com/gonutz/w32"
+	"github.com/gonutz/w32/v2"
 )
 
 const (
