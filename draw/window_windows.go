@@ -7,6 +7,7 @@ import (
 	"errors"
 	"image"
 	"image/draw"
+	_ "image/jpeg"
 	"image/png"
 	"math"
 	"os"
@@ -886,7 +887,7 @@ func (w *window) loadTexture(path string) error {
 	}
 	defer file.Close()
 
-	img, err := png.Decode(file)
+	img, _, err := image.Decode(file)
 	if err != nil {
 		return err
 	}
