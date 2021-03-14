@@ -17,7 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gonutz/gl/v2.1/gl"
-	"github.com/gonutz/glfw/v3.1/glfw"
+	"github.com/gonutz/glfw/v3.3/glfw"
 )
 
 func init() {
@@ -30,6 +30,9 @@ type window struct {
 	typed          []rune
 	window         *glfw.Window
 	width, height  float64
+	originalWidth  int
+	originalHeight int
+	fullscreen     bool
 	textures       map[string]texture
 	clicks         []MouseClick
 	mouseX, mouseY int
@@ -73,11 +76,13 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	w := &window{
-		running:  true,
-		window:   win,
-		width:    float64(width),
-		height:   float64(height),
-		textures: make(map[string]texture),
+		running:        true,
+		window:         win,
+		originalWidth:  width,
+		originalHeight: height,
+		width:          float64(width),
+		height:         float64(height),
+		textures:       make(map[string]texture),
 	}
 	win.SetKeyCallback(w.keyPress)
 	win.SetCharCallback(w.charTyped)
@@ -134,8 +139,30 @@ func (w *window) Size() (int, int) {
 }
 
 func (w *window) SetFullscreen(f bool) {
-	// TODO Find out how to toggle full screen in GLFW 3.1 and tell OpenGL about
-	// it.
+	if f == w.fullscreen {
+		return
+	}
+	w.fullscreen = f
+
+	if w.fullscreen {
+		monitor := monitorContaining(w.window.GetPos())
+		mode := monitor.GetVideoMode()
+		w.window.SetMonitor(monitor, 0, 0, mode.Width, mode.Height, 60)
+	} else {
+		screen := w.window.GetMonitor().GetVideoMode()
+		newW, newH := w.originalWidth, w.originalHeight
+		w.window.SetMonitor(nil, (screen.Width-newW)/2, (screen.Height-newH)/2, newW, newH, 60)
+	}
+}
+
+func monitorContaining(winX, winY int) *glfw.Monitor {
+	for _, m := range glfw.GetMonitors() {
+		x, y, w, h := m.GetWorkarea()
+		if x <= winX && winX < x+w && y <= winY && winY < y+h {
+			return m
+		}
+	}
+	return glfw.GetPrimaryMonitor()
 }
 
 func (w *window) ShowCursor(show bool) {
