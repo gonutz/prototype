@@ -7,7 +7,8 @@ import (
 	"errors"
 	"image"
 	"image/draw"
-	_ "image/png" // We allow loading PNGs by default.
+	_ "image/jpeg" // We allow loading JPEGs by default.
+	_ "image/png"  // We allow loading PNGs by default.
 	"io"
 	"math"
 	"os"
