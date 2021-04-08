@@ -102,6 +102,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		gl.MatrixMode(gl.MODELVIEW)
 	})
 
+	w.loadTexture(bytes.NewReader(bitmapFontWhitePng[:]), fontTextureID)
+
 	lastUpdateTime := time.Now().Add(-time.Hour)
 	const updateInterval = 1.0 / 60.0
 	for w.running && !win.ShouldClose() {
@@ -130,6 +132,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	return nil
 }
+
+const fontTextureID = "///font_texture"
 
 func (w *window) Close() {
 	w.running = false
@@ -602,16 +606,10 @@ func (w *window) DrawText(text string, x, y int, color Color) {
 	w.DrawScaledText(text, x, y, 1.0, color)
 }
 
-const fontTextureID = "///font_texture"
-
 func (w *window) DrawScaledText(text string, x, y int, scale float32, color Color) {
 	fontTexture, ok := w.textures[fontTextureID]
 	if !ok {
-		var err error
-		fontTexture, err = w.loadTexture(bytes.NewReader(bitmapFontWhitePng[:]), fontTextureID)
-		if err != nil {
-			panic(err)
-		}
+		return
 	}
 
 	width, height := int32(fontTexture.w/16), int32(fontTexture.h/16)
