@@ -67,13 +67,8 @@ func ellipseArea(x, y, w, h int) (p []point) {
 //
 func ellipseOutline(x, y, w, h int) []point {
 	quarter := quaterEllipsePoints(w, h)
-	xPivot, yPivot := 0, 0
-	if w%2 == 0 {
-		xPivot = 1
-	}
-	if h%2 == 0 {
-		yPivot = 1
-	}
+	xPivot := 1 - w%2
+	yPivot := 1 - h%2
 	dx, dy := x+w/2, y+h/2
 	p := make([]point, 0, len(quarter)*4)
 	for i := range quarter {
