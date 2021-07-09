@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/gonutz/prototype/draw"
 	"math/rand"
 	"time"
+
+	"github.com/gonutz/prototype/draw"
 )
 
 const (

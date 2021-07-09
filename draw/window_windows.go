@@ -7,6 +7,7 @@ import (
 	"errors"
 	"image"
 	"image/draw"
+	_ "image/jpeg"
 	"image/png"
 	"math"
 	"os"
@@ -21,7 +22,7 @@ import (
 	"github.com/gonutz/d3d9"
 	"github.com/gonutz/mixer"
 	"github.com/gonutz/mixer/wav"
-	"github.com/gonutz/w32"
+	"github.com/gonutz/w32/v2"
 )
 
 const (
@@ -299,6 +300,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 					w, h := globalWindow.Size()
 					globalWindow.FillRect(0, 0, w, h, Black)
 					update(globalWindow)
+					globalWindow.flushBacklog()
 					wasUpdated = true
 					nextUpdate -= 1
 				}
@@ -375,7 +377,19 @@ type window struct {
 	sounds       map[string]mixer.SoundSource
 	text         string
 	textures     map[string]sizedTexture
+	backlog      []float32
+	backlogType  shape
 }
+
+type shape int
+
+const (
+	nothing shape = iota
+	rectangles
+	points
+	lines
+	texts
+)
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 	switch msg {
@@ -571,13 +585,52 @@ func (w *window) MouseWheelY() float64 {
 }
 
 func (w *window) DrawPoint(x, y int, color Color) {
-	data := [...]float32{
+	w.addBacklog(points,
 		float32(x), float32(y), 0, 1, colorToFloat32(color), 0, 0,
+	)
+}
+
+func (w *window) addBacklog(typ shape, data ...float32) {
+	if typ != w.backlogType {
+		w.flushBacklog()
 	}
+	w.backlog = append(w.backlog, data...)
+	w.backlogType = typ
+}
+
+func (w *window) flushBacklog() {
+	if len(w.backlog) == 0 {
+		return
+	}
+
+	switch w.backlogType {
+	case points:
+		w.drawBacklog(d3d9.PT_POINTLIST, 1)
+	case rectangles:
+		w.drawBacklog(d3d9.PT_TRIANGLELIST, 3)
+	case lines:
+		w.drawBacklog(d3d9.PT_LINELIST, 2)
+	case texts:
+		if err := w.device.SetTexture(0, w.textures[fontTextureID].texture); err != nil {
+			w.d3d9Error = err
+		}
+
+		w.drawBacklog(d3d9.PT_TRIANGLELIST, 3)
+
+		if err := w.device.SetTexture(0, nil); err != nil {
+			w.d3d9Error = err
+		}
+	}
+
+	w.backlog = w.backlog[:0]
+	w.backlogType = nothing
+}
+
+func (w *window) drawBacklog(primitive d3d9.PRIMITIVETYPE, verticesPerPrimitive int) {
 	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_POINTLIST,
-		1,
-		uintptr(unsafe.Pointer(&data[0])),
+		primitive,
+		uint(len(w.backlog)/(verticesPerPrimitive*vertexStride/4)),
+		uintptr(unsafe.Pointer(&w.backlog[0])),
 		vertexStride,
 	); err != nil {
 		w.d3d9Error = err
@@ -591,20 +644,10 @@ func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
 	}
 
 	col := colorToFloat32(color)
-	fx, fy := float32(fromX), float32(fromY)
-	fx2, fy2 := float32(toX), float32(toY)
-	data := [...]float32{
-		fx, fy, 0, 1, col, 0, 0,
-		fx2, fy2, 0, 1, col, 0, 0,
-	}
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_LINELIST,
-		1,
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
+	w.addBacklog(lines,
+		float32(fromX), float32(fromY), 0, 1, col, 0, 0,
+		float32(toX), float32(toY), 0, 1, col, 0, 0,
+	)
 }
 
 func (w *window) DrawRect(x, y, width, height int, color Color) {
@@ -627,20 +670,15 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 	var col float32 = *(*float32)(unsafe.Pointer(&d3dColor))
 	fx, fy := float32(x), float32(y)
 	fx2, fy2 := float32(x+width), float32(y+height)
-	data := [...]float32{
+	w.addBacklog(rectangles,
 		fx, fy, 0, 1, col, 0, 0,
 		fx2, fy, 0, 1, col, 0, 0,
 		fx, fy2, 0, 1, col, 0, 0,
+
+		fx, fy2, 0, 1, col, 0, 0,
+		fx2, fy, 0, 1, col, 0, 0,
 		fx2, fy2, 0, 1, col, 0, 0,
-	}
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_TRIANGLESTRIP,
-		2,
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
+	)
 }
 
 func (w *window) DrawEllipse(x, y, width, height int, color Color) {
@@ -648,25 +686,12 @@ func (w *window) DrawEllipse(x, y, width, height int, color Color) {
 	if len(outline) == 0 {
 		return
 	}
-	data := make([]float32, len(outline)*7)
+
 	col := colorToFloat32(color)
 	for i := range outline {
-		j := i * 7
-		data[j+0] = float32(outline[i].x)
-		data[j+1] = float32(outline[i].y)
-		data[j+2] = 0
-		data[j+3] = 1
-		data[j+4] = col
-		data[j+5] = 0
-		data[j+6] = 0
-	}
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_POINTLIST,
-		uint(len(outline)),
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
+		w.addBacklog(points,
+			float32(outline[i].x), float32(outline[i].y), 0, 1, col, 0, 0,
+		)
 	}
 }
 
@@ -675,30 +700,16 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 	if len(area) == 0 {
 		return
 	}
+
 	col := colorToFloat32(color)
-	data := make([]float32, len(area)*7)
 	for i := range area {
-		j := i * 7
-		data[j+0] = float32(area[i].x)
-		data[j+1] = float32(area[i].y)
-		data[j+2] = 0
-		data[j+3] = 1
-		data[j+4] = col
-		data[j+5] = 0
-		data[j+6] = 0
-	}
-	// now offset every right point in each line by +0.5, otherwise they might
-	// not be fully visible
-	for i := 8; i < len(data); i += 14 {
-		data[i-1] += 0.5
-	}
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_LINELIST,
-		uint(len(area)/2),
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
+		x, y := float32(area[i].x), float32(area[i].y)
+		if i%2 == 1 {
+			// Offset every right point in each line by +0.5, otherwise they
+			// might not be fully visible.
+			x += 0.5
+		}
+		w.addBacklog(lines, x, y, 0, 1, col, 0, 0)
 	}
 }
 
@@ -762,8 +773,6 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		return
 	}
 
-	texture := w.textures[fontTextureID]
-	data := make([]float32, 0, vertexStride/4*len(text))
 	width := int(float32(fontCharW)*scale + 0.5)
 	height := int(float32(fontCharH)*scale + 0.5)
 	col := colorToFloat32(color)
@@ -783,7 +792,7 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		u := float32(r%16) / 16
 		v := float32(r/16) / 16
 
-		data = append(data,
+		w.addBacklog(texts,
 			float32(destX)-0.5, float32(destY)-0.5, 0, 1, col, u, v,
 			float32(destX+width)-0.5, float32(destY)-0.5, 0, 1, col, u+1.0/16, v,
 			float32(destX)-0.5, float32(destY+height)-0.5, 0, 1, col, u, v+1.0/16,
@@ -794,25 +803,6 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		)
 
 		destX += width
-	}
-
-	if err := w.device.SetTexture(0, texture.texture); err != nil {
-		w.d3d9Error = err
-		return
-	}
-
-	if err := w.device.DrawPrimitiveUP(
-		d3d9.PT_TRIANGLELIST,
-		charCount*2,
-		uintptr(unsafe.Pointer(&data[0])),
-		vertexStride,
-	); err != nil {
-		w.d3d9Error = err
-	}
-
-	// reset the texture
-	if err := w.device.SetTexture(0, nil); err != nil {
-		w.d3d9Error = err
 	}
 }
 
@@ -897,7 +887,7 @@ func (w *window) loadTexture(path string) error {
 	}
 	defer file.Close()
 
-	img, err := png.Decode(file)
+	img, _, err := image.Decode(file)
 	if err != nil {
 		return err
 	}
@@ -961,6 +951,8 @@ func (w *window) renderImage(
 	srcX, srcY, srcW, srcH int,
 	degrees int,
 ) error {
+	w.flushBacklog()
+
 	if _, ok := w.textures[path]; !ok {
 		if err := w.loadTexture(path); err != nil {
 			return err
@@ -978,10 +970,6 @@ func (w *window) renderImage(
 
 	if srcW == 0 {
 		srcW, srcH = texture.width, texture.height
-	}
-
-	if err := w.device.SetTexture(0, texture.texture); err != nil {
-		return err
 	}
 
 	col := colorToFloat32(White)
@@ -1017,6 +1005,11 @@ func (w *window) renderImage(
 		x3 + dx, y3 + dy, 0, 1, col, u1, v2,
 		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
+
+	if err := w.device.SetTexture(0, texture.texture); err != nil {
+		return err
+	}
+
 	if err := w.device.DrawPrimitiveUP(
 		d3d9.PT_TRIANGLESTRIP,
 		2,

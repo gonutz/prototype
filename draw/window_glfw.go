@@ -7,7 +7,8 @@ import (
 	"errors"
 	"image"
 	"image/draw"
-	_ "image/png" // We allow loading PNGs by default.
+	_ "image/jpeg" // We allow loading JPEGs by default.
+	_ "image/png"  // We allow loading PNGs by default.
 	"io"
 	"math"
 	"os"
@@ -17,7 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gonutz/gl/v2.1/gl"
-	"github.com/gonutz/glfw/v3.1/glfw"
+	"github.com/gonutz/glfw/v3.3/glfw"
 )
 
 func init() {
@@ -30,6 +31,9 @@ type window struct {
 	typed          []rune
 	window         *glfw.Window
 	width, height  float64
+	originalWidth  int
+	originalHeight int
+	fullscreen     bool
 	textures       map[string]texture
 	clicks         []MouseClick
 	mouseX, mouseY int
@@ -73,11 +77,13 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	w := &window{
-		running:  true,
-		window:   win,
-		width:    float64(width),
-		height:   float64(height),
-		textures: make(map[string]texture),
+		running:        true,
+		window:         win,
+		originalWidth:  width,
+		originalHeight: height,
+		width:          float64(width),
+		height:         float64(height),
+		textures:       make(map[string]texture),
 	}
 	win.SetKeyCallback(w.keyPress)
 	win.SetCharCallback(w.charTyped)
@@ -95,6 +101,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		gl.Viewport(0, 0, int32(width), int32(height))
 		gl.MatrixMode(gl.MODELVIEW)
 	})
+
+	w.loadTexture(bytes.NewReader(bitmapFontWhitePng[:]), fontTextureID)
 
 	lastUpdateTime := time.Now().Add(-time.Hour)
 	const updateInterval = 1.0 / 60.0
@@ -125,6 +133,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	return nil
 }
 
+const fontTextureID = "///font_texture"
+
 func (w *window) Close() {
 	w.running = false
 }
@@ -134,8 +144,30 @@ func (w *window) Size() (int, int) {
 }
 
 func (w *window) SetFullscreen(f bool) {
-	// TODO Find out how to toggle full screen in GLFW 3.1 and tell OpenGL about
-	// it.
+	if f == w.fullscreen {
+		return
+	}
+	w.fullscreen = f
+
+	if w.fullscreen {
+		monitor := monitorContaining(w.window.GetPos())
+		mode := monitor.GetVideoMode()
+		w.window.SetMonitor(monitor, 0, 0, mode.Width, mode.Height, 60)
+	} else {
+		screen := w.window.GetMonitor().GetVideoMode()
+		newW, newH := w.originalWidth, w.originalHeight
+		w.window.SetMonitor(nil, (screen.Width-newW)/2, (screen.Height-newH)/2, newW, newH, 60)
+	}
+}
+
+func monitorContaining(winX, winY int) *glfw.Monitor {
+	for _, m := range glfw.GetMonitors() {
+		x, y, w, h := m.GetWorkarea()
+		if x <= winX && winX < x+w && y <= winY && winY < y+h {
+			return m
+		}
+	}
+	return glfw.GetPrimaryMonitor()
 }
 
 func (w *window) ShowCursor(show bool) {
@@ -574,16 +606,10 @@ func (w *window) DrawText(text string, x, y int, color Color) {
 	w.DrawScaledText(text, x, y, 1.0, color)
 }
 
-const fontTextureID = "///font_texture"
-
 func (w *window) DrawScaledText(text string, x, y int, scale float32, color Color) {
 	fontTexture, ok := w.textures[fontTextureID]
 	if !ok {
-		var err error
-		fontTexture, err = w.loadTexture(bytes.NewReader(bitmapFontWhitePng[:]), fontTextureID)
-		if err != nil {
-			panic(err)
-		}
+		return
 	}
 
 	width, height := int32(fontTexture.w/16), int32(fontTexture.h/16)
