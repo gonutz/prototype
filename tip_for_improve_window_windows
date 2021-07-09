@@ -1,0 +1,52 @@
+I`m sorry, but I would like give sugestion for this amazing library.........
+I sugest add one variable (background) to window_windows so the code of "vars" will looks like this:
+```
+...
+var (
+	windowOpenMutex      sync.Mutex
+	windowIsOpen         bool
+	globalWindow         *window
+	fontCharW, fontCharH int
+	background = Black
+)
+...
+```
+this variable would will in RunWindow, in for-cykle where clear screen, so it would like this:
+```
+          // clear the screen to black before the update
+					w, h := globalWindow.Size()
+					globalWindow.FillRect(0, 0, w, h, background)
+					update(globalWindow)
+					wasUpdated = true
+					nextUpdate -= 1
+```
+and finaly I sugest add very simple funkcion:
+```
+func SetBackground(color Color)  {
+	background=color
+}
+```
+and example:
+```
+package main
+
+import (
+	"github.com/gonutz/prototype/draw"
+	"os"
+)
+
+
+func main() {
+	w,h := 500,500
+	draw.SetBackground(draw.Yellow)
+	err := draw.RunWindow("example",w,h, upage)
+	if err != nil {
+		fmt.Println("error")
+		os.Exit(1)
+	}
+}
+
+func upage(window draw.Window) {
+  //do something
+}
+```
