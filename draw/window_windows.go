@@ -329,6 +329,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			}
 		}
 	}
+	// Remove the last quit message. Otherwise opening two windows back to back
+	// will close the second one immediately.
+	w32.PeekMessage(&msg, 0, 0, 0, w32.PM_REMOVE)
 
 	for _, tex := range globalWindow.textures {
 		tex.texture.Release()
