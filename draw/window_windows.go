@@ -228,7 +228,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	setRenderState := func() {
 		device.SetFVF(vertexFormat)
 		device.SetRenderState(d3d9.RS_ZENABLE, d3d9.ZB_FALSE)
-		device.SetRenderState(d3d9.RS_CULLMODE, d3d9.CULL_CCW)
+		device.SetRenderState(d3d9.RS_CULLMODE, d3d9.CULL_NONE)
 		device.SetRenderState(d3d9.RS_LIGHTING, 0)
 		device.SetRenderState(d3d9.RS_SRCBLEND, d3d9.BLEND_SRCALPHA)
 		device.SetRenderState(d3d9.RS_DESTBLEND, d3d9.BLEND_INVSRCALPHA)
