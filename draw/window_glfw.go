@@ -11,7 +11,6 @@ import (
 	_ "image/png"  // We allow loading PNGs by default.
 	"io"
 	"math"
-	"os"
 	"runtime"
 	"strings"
 	"time"

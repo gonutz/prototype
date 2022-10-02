@@ -10,7 +10,6 @@ import (
 	_ "image/jpeg"
 	"image/png"
 	"math"
-	"os"
 	"runtime"
 	"strings"
 	"sync"
