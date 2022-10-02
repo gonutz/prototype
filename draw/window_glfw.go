@@ -331,7 +331,7 @@ func (w *window) getOrLoadTexture(path string) (texture, error) {
 		return tex, nil
 	}
 
-	imgFile, err := os.Open(path)
+	imgFile, err := OpenFile(path)
 	if err != nil {
 		return texture{}, err
 	}

@@ -5,7 +5,18 @@
 // can do.
 package draw
 
-import "strconv"
+import (
+	"io"
+	"os"
+	"strconv"
+)
+
+// OpenFile allows you to re-direct from the file system to your own data
+// storage for image and sound files. It defaults to os.Open but you can
+// overwrite it with any function that fits the signature.
+var OpenFile = func(path string) (io.ReadCloser, error) {
+	return os.Open(path)
+}
 
 // UpdateFunction is used as a callback when creating a window. It is called
 // at 60Hz and you do all your event handling and drawing in it.

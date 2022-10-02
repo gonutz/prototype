@@ -4,6 +4,7 @@ package draw
 
 import (
 	"errors"
+	"io/ioutil"
 	"runtime"
 	"strings"
 	"sync"
@@ -444,18 +445,27 @@ func (w *window) loadImageIfNecessary(path string) {
 	if _, ok := w.textures[path]; ok {
 		return
 	}
-	img, err := img.Load(path)
-	if err != nil {
-		w.textures[path] = nil
-		return
+
+	if f, err := OpenFile(path); err == nil {
+		defer f.Close()
+		if data, err := ioutil.ReadAll(f); err == nil {
+			if rw, err := sdl.RWFromMem(data); err == nil {
+				img, err := img.LoadRW(rw, false)
+
+				if err != nil {
+					w.textures[path] = nil
+					return
+				}
+				defer img.Free()
+				texture, err := w.renderer.CreateTextureFromSurface(img)
+				if err != nil {
+					w.textures[path] = nil
+					return
+				}
+				w.textures[path] = texture
+			}
+		}
 	}
-	defer img.Free()
-	texture, err := w.renderer.CreateTextureFromSurface(img)
-	if err != nil {
-		w.textures[path] = nil
-		return
-	}
-	w.textures[path] = texture
 }
 
 func (win *window) GetTextSize(text string) (w, h int) {
@@ -522,7 +532,14 @@ func (w *window) loadSoundIfNecessary(path string) {
 	if _, ok := w.soundChunks[path]; ok {
 		return
 	}
-	w.soundChunks[path], _ = mix.LoadWAV(path)
+	if f, err := OpenFile(path); err == nil {
+		defer f.Close()
+		if data, err := ioutil.ReadAll(f); err == nil {
+			if rw, err := sdl.RWFromMem(data); err == nil {
+				w.soundChunks[path], _ = mix.LoadWAVRW(rw, false)
+			}
+		}
+	}
 }
 
 func toKey(k sdl.Keycode) Key {
