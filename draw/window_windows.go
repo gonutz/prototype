@@ -844,6 +844,9 @@ func (w *window) mouseEvent(button MouseButton, down bool) {
 			Y:      w.mouse.y,
 			Button: button,
 		})
+		w32.SetCapture(w.handle)
+	} else {
+		w32.ReleaseCapture()
 	}
 }
 
