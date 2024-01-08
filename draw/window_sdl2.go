@@ -1,3 +1,4 @@
+//go:build sdl2 && !glfw
 // +build sdl2,!glfw
 
 package draw

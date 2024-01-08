@@ -381,10 +381,12 @@ type shape int
 
 // We name the shapes by their form:
 //
-//     x         x       xx       x        xx       xx        xxx
+//	x         x       xx       x        xx       xx        xxx
+//
 // L = x    J =  x   O = xx   I = x   S = xx    Z =  xx   T =  x
-//     xx       xx                x
-//                                x
+//
+//	xx       xx                x
+//	                           x
 const (
 	L shape = iota
 	J

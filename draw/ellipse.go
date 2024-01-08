@@ -8,12 +8,11 @@ type point struct {
 // horizontal line (i.e. both points have the same y position) and if you draw
 // horizontal pixels lines for all pairs, you will have the requested ellipse.
 //
-//         c···d
-//      g·········h
-//     i···········j
-//      e·········f
-//         a···b
-//
+//	    c···d
+//	 g·········h
+//	i···········j
+//	 e·········f
+//	    a···b
 func ellipseArea(x, y, w, h int) (p []point) {
 	quarter := quaterEllipsePoints(w, h)
 	xPivot, yPivot := 0, 0
@@ -59,12 +58,11 @@ func ellipseArea(x, y, w, h int) (p []point) {
 // ellipseOutline returns a list of pixel positions that mark the outline of the
 // requested ellipse.
 //
-//       jih
-//     lk   gf
-//    m       e
-//     no   cd
-//       pab
-//
+//	   jih
+//	 lk   gf
+//	m       e
+//	 no   cd
+//	   pab
 func ellipseOutline(x, y, w, h int) []point {
 	quarter := quaterEllipsePoints(w, h)
 	xPivot := 1 - w%2
