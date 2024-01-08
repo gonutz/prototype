@@ -298,6 +298,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 					// clear the screen to black before the update
 					w, h := globalWindow.Size()
 					globalWindow.FillRect(0, 0, w, h, Black)
+					globalWindow.updateMouseInfo()
 					update(globalWindow)
 					globalWindow.flushBacklog()
 					wasUpdated = true
@@ -574,6 +575,28 @@ func (w *window) Clicks() []MouseClick {
 	return w.clicks
 }
 
+func (w *window) updateMouseInfo() {
+	// Read the mouse cursor position.
+	screenX, screenY, ok := w32.GetCursorPos()
+	if ok {
+		windowX, windowY, ok := w32.ScreenToClient(w.handle, screenX, screenY)
+		if ok {
+			w.mouse.x, w.mouse.y = windowX, windowY
+		}
+	}
+
+	// Read the mouse button states.
+	left := w32.GetAsyncKeyState(w32.VK_LBUTTON)
+	right := w32.GetAsyncKeyState(w32.VK_RBUTTON)
+	middle := w32.GetAsyncKeyState(w32.VK_MBUTTON)
+	if w32.GetSystemMetrics(w32.SM_SWAPBUTTON) != 0 {
+		left, right = right, left
+	}
+	w.mouseDown[LeftButton] = left&0x8000 != 0
+	w.mouseDown[RightButton] = right&0x8000 != 0
+	w.mouseDown[MiddleButton] = middle&0x8000 != 0
+}
+
 func (w *window) MousePosition() (int, int) {
 	return w.mouse.x, w.mouse.y
 }
@@ -838,6 +861,7 @@ func (w *window) PlaySoundFile(path string) error {
 
 func (w *window) mouseEvent(button MouseButton, down bool) {
 	w.mouseDown[button] = down
+
 	if down {
 		w.clicks = append(w.clicks, MouseClick{
 			X:      w.mouse.x,
@@ -845,7 +869,11 @@ func (w *window) mouseEvent(button MouseButton, down bool) {
 			Button: button,
 		})
 		w32.SetCapture(w.handle)
-	} else {
+	}
+
+	if !w.mouseDown[LeftButton] &&
+		!w.mouseDown[MiddleButton] &&
+		!w.mouseDown[RightButton] {
 		w32.ReleaseCapture()
 	}
 }
