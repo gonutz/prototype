@@ -400,10 +400,10 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 	case w32.WM_INPUT:
 		raw, ok := w32.GetRawInputData(w32.HRAWINPUT(l), w32.RID_INPUT)
 		if !ok {
-			return 1
+			return 0
 		}
 		if raw.Header.Type != w32.RIM_TYPEKEYBOARD {
-			return 1
+			return 0
 		}
 		key, down := rawInputToKey(raw.GetKeyboard())
 		if key != 0 {
@@ -415,43 +415,48 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 				}
 			}
 		}
-		return 1
+		return 0
 	case w32.WM_CHAR:
 		globalWindow.text += string(utf16.Decode([]uint16{uint16(w)})[0])
-		return 1
+		return 0
 	case w32.WM_MOUSEMOVE:
 		globalWindow.mouse.x = int(int16(w32.LOWORD(uint32(l))))
 		globalWindow.mouse.y = int(int16(w32.HIWORD(uint32(l))))
-		return 1
+		return 0
 	case w32.WM_LBUTTONDOWN:
 		globalWindow.mouseEvent(LeftButton, true)
-		return 1
+		return 0
 	case w32.WM_LBUTTONUP:
 		globalWindow.mouseEvent(LeftButton, false)
-		return 1
+		return 0
 	case w32.WM_RBUTTONDOWN:
 		globalWindow.mouseEvent(RightButton, true)
-		return 1
+		return 0
 	case w32.WM_RBUTTONUP:
 		globalWindow.mouseEvent(RightButton, false)
-		return 1
+		return 0
 	case w32.WM_MBUTTONDOWN:
 		globalWindow.mouseEvent(MiddleButton, true)
-		return 1
+		return 0
 	case w32.WM_MBUTTONUP:
 		globalWindow.mouseEvent(MiddleButton, false)
-		return 1
+		return 0
 	case w32.WM_MOUSEWHEEL:
 		globalWindow.wheelY += float64(int16(w32.HIWORD(uint32(w)))) / 120.0
-		return 1
+		return 0
 	case w32.WM_MOUSEHWHEEL:
 		globalWindow.wheelX += float64(int16(w32.HIWORD(uint32(w)))) / 120.0
-		return 1
+		return 0
 	case w32.WM_DESTROY:
 		if globalWindow != nil {
 			globalWindow.running = false
 		}
-		return 1
+		return 0
+	case w32.WM_SYSCOMMAND:
+		if w == w32.SC_SCREENSAVE {
+			return 0
+		}
+		return w32.DefWindowProc(window, msg, w, l)
 	default:
 		return w32.DefWindowProc(window, msg, w, l)
 	}
