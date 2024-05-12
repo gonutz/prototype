@@ -430,6 +430,15 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 	gl.End()
 }
 
+func (w *window) ImageSize(path string) (width, height int, err error) {
+	tex, err := w.getOrLoadTexture(path)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return tex.w, tex.h, nil
+}
+
 func (w *window) DrawImageFile(path string, x, y int) error {
 	tex, err := w.getOrLoadTexture(path)
 	if err != nil {

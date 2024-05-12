@@ -744,6 +744,21 @@ func (w *window) FillEllipse(x, y, width, height int, color Color) {
 	}
 }
 
+func (w *window) ImageSize(path string) (width, height int, err error) {
+	if _, ok := w.textures[path]; !ok {
+		if err := w.loadTexture(path); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	texture, ok := w.textures[path]
+	if !ok {
+		return 0, 0, errors.New("texture not found after loading: " + path)
+	}
+
+	return texture.width, texture.height, nil
+}
+
 func (w *window) DrawImageFile(path string, x, y int) error {
 	return w.renderImage(path, x, y, 0, 0, 0, 0, 0, 0, 0)
 }

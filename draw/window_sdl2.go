@@ -362,6 +362,16 @@ func (w *window) FillRect(x, y, width, height int, color Color) {
 	w.renderer.FillRect(&sdl.Rect{int32(x), int32(y), int32(width), int32(height)})
 }
 
+func (w *window) ImageSize(path string) (width, height int, err error) {
+	w.loadImageIfNecessary(path)
+	img := w.textures[path]
+	if img == nil {
+		return 0, 0, errors.New(`File "` + path + `" could not be loaded.`)
+	}
+	_, _, width, height, _ := img.Query()
+	return int(width), int(height)
+}
+
 func (w *window) DrawImageFile(path string, x, y int) error {
 	w.loadImageIfNecessary(path)
 	img := w.textures[path]

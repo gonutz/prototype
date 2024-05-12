@@ -110,6 +110,11 @@ type Window interface {
 	// instaed of only drawing the outline.
 	FillEllipse(x, y, width, height int, color Color)
 
+	// ImageSize returns the given image file's width and height in pixels. It
+	// fails with an error if e.g. the file does not exist or is not a
+	// supported image file format.
+	ImageSize(path string) (width, height int, err error)
+
 	// DrawImageFile draws the untransformed image at the give position. If the
 	// image file is not found or has the wrong format an error is returned.
 	DrawImageFile(path string, x, y int) error
