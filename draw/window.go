@@ -157,6 +157,12 @@ type Window interface {
 		rotationCWDeg int,
 	) error
 
+	// BlurImages sets the state for future calls to any of the
+	// DrawImageFile... functions. Setting blur to true will draw images using
+	// anti-aliasing. Setting blur to false will use nearest-neighbor sampling
+	// when scaling images.
+	BlurImages(blur bool)
+
 	// GetTextSize returns the size the given text would have when being drawn.
 	GetTextSize(text string) (w, h int)
 

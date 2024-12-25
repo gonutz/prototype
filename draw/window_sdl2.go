@@ -452,6 +452,10 @@ func (w *window) DrawImageFilePart(
 	return nil
 }
 
+func (w *window) BlurImages(blur bool) {
+	// TODO Implement this.
+}
+
 func (w *window) loadImageIfNecessary(path string) {
 	if _, ok := w.textures[path]; ok {
 		return

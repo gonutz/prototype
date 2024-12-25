@@ -583,11 +583,13 @@ func (w *window) DrawImageFilePart(
 	gl.Disable(gl.TEXTURE_2D)
 
 	return nil
-
-	return nil
 }
 
 type pointf struct{ x, y float32 }
+
+func (w *window) BlurImages(blur bool) {
+	// TODO Implement this.
+}
 
 func (w *window) GetTextSize(text string) (width, height int) {
 	return w.GetScaledTextSize(text, 1.0)

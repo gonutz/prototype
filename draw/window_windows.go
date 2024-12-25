@@ -93,7 +93,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 	defer w32.UnregisterClassAtom(atom, w32.GetModuleHandle(""))
 
-	var windowSize = w32.RECT{0, 0, int32(width), int32(height)}
+	var windowSize = w32.RECT{Right: int32(width), Bottom: int32(height)}
 	// NOTE MSDN says you cannot pass WS_OVERLAPPED to this function but it
 	// seems to work (on XP and Windows 8.1 at least) in conjuntion with the
 	// other flags
@@ -315,7 +315,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 					return err
 				}
 				windowW, windowH := globalWindow.Size()
-				r := &d3d9.RECT{0, 0, int32(windowW), int32(windowH)}
+				r := &d3d9.RECT{Right: int32(windowW), Bottom: int32(windowH)}
 				if presentErr := device.Present(r, r, 0, nil); presentErr != nil {
 					if presentErr.Code() == d3d9.ERR_DEVICELOST {
 						deviceIsLost = true
@@ -370,6 +370,7 @@ type window struct {
 	isFullscreen bool
 	windowed     w32.WINDOWPLACEMENT
 	cursorHidden bool
+	blurImages   bool
 	mouse        struct{ x, y int }
 	wheelX       float64
 	wheelY       float64
@@ -789,6 +790,19 @@ func (w *window) DrawImageFilePart(
 		sourceX, sourceY, sourceWidth, sourceHeight,
 		rotationCWDeg,
 	)
+}
+
+func (w *window) BlurImages(blur bool) {
+	if w.blurImages != blur {
+		w.blurImages = blur
+
+		var filter uint32 = d3d9.TEXF_NONE
+		if blur {
+			filter = d3d9.TEXF_LINEAR
+		}
+		w.device.SetSamplerState(0, d3d9.SAMP_MINFILTER, filter)
+		w.device.SetSamplerState(0, d3d9.SAMP_MAGFILTER, filter)
+	}
 }
 
 func (win *window) GetTextSize(text string) (w, h int) {
