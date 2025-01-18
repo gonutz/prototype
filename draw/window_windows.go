@@ -75,10 +75,11 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	defer d3d.Release()
 
 	globalWindow = &window{
-		running:  true,
-		soundOn:  soundOn,
-		sounds:   make(map[string]mixer.SoundSource),
-		textures: make(map[string]sizedTexture),
+		running:   true,
+		soundOn:   soundOn,
+		sounds:    make(map[string]mixer.SoundSource),
+		textures:  make(map[string]sizedTexture),
+		curFilter: d3d9.TEXF_NONE,
 	}
 
 	class := w32.WNDCLASSEX{
@@ -371,6 +372,8 @@ type window struct {
 	windowed     w32.WINDOWPLACEMENT
 	cursorHidden bool
 	blurImages   bool
+	blurText     bool
+	curFilter    uint32
 	mouse        struct{ x, y int }
 	wheelX       float64
 	wheelY       float64
@@ -393,7 +396,8 @@ const (
 	rectangles
 	points
 	lines
-	texts
+	jaggedTexts
+	blurredTexts
 )
 
 func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
@@ -642,7 +646,9 @@ func (w *window) flushBacklog() {
 		w.drawBacklog(d3d9.PT_TRIANGLELIST, 3)
 	case lines:
 		w.drawBacklog(d3d9.PT_LINELIST, 2)
-	case texts:
+	case jaggedTexts, blurredTexts:
+		w.updateTextureFilter(w.backlogType == blurredTexts)
+
 		if err := w.device.SetTexture(0, w.textures[fontTextureID].texture); err != nil {
 			w.d3d9Error = err
 		}
@@ -793,16 +799,11 @@ func (w *window) DrawImageFilePart(
 }
 
 func (w *window) BlurImages(blur bool) {
-	if w.blurImages != blur {
-		w.blurImages = blur
+	w.blurImages = blur
+}
 
-		var filter uint32 = d3d9.TEXF_NONE
-		if blur {
-			filter = d3d9.TEXF_LINEAR
-		}
-		w.device.SetSamplerState(0, d3d9.SAMP_MINFILTER, filter)
-		w.device.SetSamplerState(0, d3d9.SAMP_MAGFILTER, filter)
-	}
+func (w *window) BlurText(blur bool) {
+	w.blurText = blur
 }
 
 func (win *window) GetTextSize(text string) (w, h int) {
@@ -833,33 +834,47 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 		return
 	}
 
-	width := int(float32(fontCharW)*scale + 0.5)
-	height := int(float32(fontCharH)*scale + 0.5)
+	fontTextureW := 16 * fontCharW
+	fontTextureH := 16 * fontCharH
+	uOffset := float32(fontGlyphMargin) / float32(fontTextureW)
+	vOffset := float32(fontGlyphMargin) / float32(fontTextureH)
+	uStep := float32(fontCharW) / float32(fontTextureW)
+	vStep := float32(fontCharH) / float32(fontTextureH)
+	uSize := float32(fontCharW-2*fontGlyphMargin) / float32(fontTextureW)
+	vSize := float32(fontCharH-2*fontGlyphMargin) / float32(fontTextureH)
+
+	width := float32(fontCharW-2*fontGlyphMargin) * scale
+	height := float32(fontCharH-2*fontGlyphMargin) * scale
 	col := colorToFloat32(color)
-	destX, destY := x, y
+	destX, destY := float32(x), float32(y)
 	var charCount uint
 
 	for _, r := range text {
 		if r == '\n' {
-			destX = x
+			destX = float32(x)
 			destY += height
 			continue
 		}
-		r = runeToFont(r)
 
 		charCount++
 
-		u := float32(r%16) / 16
-		v := float32(r/16) / 16
+		index := runeToFont(r)
+		u := uOffset + float32(index%16)*uStep
+		v := vOffset + float32(index/16)*vStep
 
-		w.addBacklog(texts,
+		jobType := jaggedTexts
+		if w.blurText {
+			jobType = blurredTexts
+		}
+
+		w.addBacklog(jobType,
 			float32(destX)-0.5, float32(destY)-0.5, 0, 1, col, u, v,
-			float32(destX+width)-0.5, float32(destY)-0.5, 0, 1, col, u+1.0/16, v,
-			float32(destX)-0.5, float32(destY+height)-0.5, 0, 1, col, u, v+1.0/16,
+			float32(destX)+width-0.5, float32(destY)-0.5, 0, 1, col, u+uSize, v,
+			float32(destX)-0.5, float32(destY)+height-0.5, 0, 1, col, u, v+vSize,
 
-			float32(destX)-0.5, float32(destY+height)-0.5, 0, 1, col, u, v+1.0/16,
-			float32(destX+width)-0.5, float32(destY)-0.5, 0, 1, col, u+1.0/16, v,
-			float32(destX+width)-0.5, float32(destY+height)-0.5, 0, 1, col, u+1.0/16, v+1.0/16,
+			float32(destX)-0.5, float32(destY)+height-0.5, 0, 1, col, u, v+vSize,
+			float32(destX)+width-0.5, float32(destY)-0.5, 0, 1, col, u+uSize, v,
+			float32(destX)+width-0.5, float32(destY)+height-0.5, 0, 1, col, u+uSize, v+vSize,
 		)
 
 		destX += width
@@ -1080,6 +1095,8 @@ func (w *window) renderImage(
 		x4 + dx, y4 + dy, 0, 1, col, u2, v2,
 	}
 
+	w.updateTextureFilter(w.blurImages)
+
 	if err := w.device.SetTexture(0, texture.texture); err != nil {
 		return err
 	}
@@ -1099,6 +1116,19 @@ func (w *window) renderImage(
 	}
 
 	return nil
+}
+
+func (w *window) updateTextureFilter(blur bool) {
+	var wantFilter uint32 = d3d9.TEXF_NONE
+	if blur {
+		wantFilter = d3d9.TEXF_LINEAR
+	}
+
+	if w.curFilter != wantFilter {
+		w.curFilter = wantFilter
+		w.device.SetSamplerState(0, d3d9.SAMP_MINFILTER, wantFilter)
+		w.device.SetSamplerState(0, d3d9.SAMP_MAGFILTER, wantFilter)
+	}
 }
 
 func rawInputToKey(kb w32.RAWKEYBOARD) (key Key, down bool) {

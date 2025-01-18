@@ -1,5 +1,9 @@
 package draw
 
+// Each letter in the font bitmap has a border of fontGlyphMargin around it, to
+// each side. So the total margin left + right is fontGlyphMargin * 2.
+const fontGlyphMargin = 1
+
 // runeToFont maps a unicode rune to the index of the respective glyph in the
 // font bitmap. The bitmap contains only a subset of all existing runes, if r is
 // not present in the bitmap, a replacement character is returned.

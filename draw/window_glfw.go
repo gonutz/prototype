@@ -591,6 +591,10 @@ func (w *window) BlurImages(blur bool) {
 	// TODO Implement this.
 }
 
+func (w *window) BlurText(blur bool) {
+	// TODO Implement this.
+}
+
 func (w *window) GetTextSize(text string) (width, height int) {
 	return w.GetScaledTextSize(text, 1.0)
 }

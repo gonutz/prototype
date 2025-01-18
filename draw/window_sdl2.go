@@ -456,6 +456,10 @@ func (w *window) BlurImages(blur bool) {
 	// TODO Implement this.
 }
 
+func (w *window) BlurText(blur bool) {
+	// TODO Implement this.
+}
+
 func (w *window) loadImageIfNecessary(path string) {
 	if _, ok := w.textures[path]; ok {
 		return
