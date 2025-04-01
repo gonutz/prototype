@@ -811,9 +811,6 @@ func (win *window) GetTextSize(text string) (w, h int) {
 }
 
 func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
-	charW := int(float32(fontCharW)*scale + 0.5)
-	charH := int(float32(fontCharH)*scale + 0.5)
-
 	lines := strings.Split(text, "\n")
 	maxLineW := 0
 	for _, line := range lines {
@@ -822,7 +819,12 @@ func (win *window) GetScaledTextSize(text string, scale float32) (w, h int) {
 			maxLineW = w
 		}
 	}
-	return charW * maxLineW, charH * len(lines)
+
+	charW := fontCharW - 2*fontGlyphMargin
+	charH := fontCharH - 2*fontGlyphMargin
+	w = int(float32(charW*maxLineW)*scale + 0.5)
+	h = int(float32(charH*len(lines))*scale + 0.5)
+	return w, h
 }
 
 func (w *window) DrawText(text string, x, y int, color Color) {
@@ -847,7 +849,6 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 	height := float32(fontCharH-2*fontGlyphMargin) * scale
 	col := colorToFloat32(color)
 	destX, destY := float32(x), float32(y)
-	var charCount uint
 
 	for _, r := range text {
 		if r == '\n' {
@@ -855,8 +856,6 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 			destY += height
 			continue
 		}
-
-		charCount++
 
 		index := runeToFont(r)
 		u := uOffset + float32(index%16)*uStep
