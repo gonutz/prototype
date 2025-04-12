@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Goulder Dash</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: black;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      background: #111;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="260" height="260" style="touch-action:none;"></canvas>
+
+  <script src="wasm_exec.js">
+    // copy wasm_exec.js from the Go installation directory (e.g., $GOROOT/misc/wasm/wasm_exec.js or $GOROOT/lib/wasm/wasm_exec.js)
+  </script>
+  <script>
+    const go = new Go();
+
+    if (!WebAssembly.instantiateStreaming) {
+      // polyfill for Safari
+      WebAssembly.instantiateStreaming = async (resp, importObject) => {
+        const source = await (await resp).arrayBuffer();
+        return await WebAssembly.instantiate(source, importObject);
+      };
+    }
+
+    WebAssembly.instantiateStreaming(fetch("worm.wasm"), go.importObject)
+      .then(result => {
+        go.run(result.instance);
+      })
+      .catch(err => {
+        console.error("WASM load error:", err);
+        const ctx = document.getElementById("gameCanvas").getContext("2d");
+        ctx.fillStyle = "red";
+        ctx.font = "20px sans-serif";
+        ctx.fillText("Failed to load WebAssembly module.", 20, 50);
+      });
+  </script>
+</body>
+</html>
