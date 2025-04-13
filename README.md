@@ -44,16 +44,11 @@ The prototype framework supports multiple targets:
 
 - Implemented via HTML5 Canvas and Web Audio using `syscall/js`
 - Requires Go 1.21+
-- Add a file with build tag:
-  ```go
-  //go:build js && wasm
-  // +build js,wasm
-  ```
 - Compile using:
   ```sh
   GOOS=js GOARCH=wasm go build -o main.wasm
   ```
-- Use a simple HTML wrapper with a canvas and `wasm_exec.js`:
+- Use a simple HTML wrapper with a canvas and `wasm_exec.js` (from Go installation):
   ```html
   <canvas id="gameCanvas" width="800" height="600" style="touch-action:none;"></canvas>
   <script src="wasm_exec.js"></script>
@@ -64,6 +59,9 @@ The prototype framework supports multiple targets:
     });
   </script>
   ```
+
+> [!NOTE]
+> The required `wasm_exec.js` file is included in the Go installation. You can find it in the `$(go env GOROOT)/misc/wasm` or `$(go env GOROOT)/lib/wasm` directory. Copy it to your project directory.
 
 To serve locally:
 
@@ -124,4 +122,3 @@ func update(window draw.Window) {
 ```
 
 This example displays a window with a round button in the middle to close it. It demonstrates basic drawing and event handling.
-
