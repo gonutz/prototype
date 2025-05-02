@@ -716,24 +716,57 @@ func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color 
 // PlaySoundFile plays an audio file by path using the Web Audio API.
 // It ensures the AudioContext is resumed before playback, as required by browser policies.
 func (w *wasmWindow) PlaySoundFile(path string) error {
+	// Do not wait on resume or fetch — just try it
 	if w.audioCtx.Get("state").String() == "suspended" {
 		w.audioCtx.Call("resume")
 	}
 
-	// Load (or retrieve cached) audio buffer
-	buffer, err := w.loadSoundFile(path)
-	if err != nil {
-		return err
+	// Already loaded? Play immediately
+	if buffer, ok := w.audioBuffers[path]; ok {
+		return w.playBuffer(buffer)
 	}
 
-	// Create an audio buffer source node
+	// Begin async load
+	w.asyncLoadSound(path, func(buffer js.Value, err error) {
+		if err == nil {
+			w.playBuffer(buffer)
+		}
+	})
+
+	return nil
+}
+
+// Non-blocking async sound load using JS promises
+func (w *wasmWindow) asyncLoadSound(path string, callback func(js.Value, error)) {
+	fetchPromise := js.Global().Call("fetch", path)
+
+	fetchPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		resp := args[0]
+		resp.Call("arrayBuffer").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			arrayBuffer := args[0]
+			w.audioCtx.Call("decodeAudioData", arrayBuffer,
+				js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					buffer := args[0]
+					w.audioBuffers[path] = buffer
+					callback(buffer, nil)
+					return nil
+				}),
+				js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+					callback(js.Null(), fmt.Errorf("failed to decode audio: %s", path))
+					return nil
+				}),
+			)
+			return nil
+		}))
+		return nil
+	}))
+}
+
+// Small helper to play a buffer
+func (w *wasmWindow) playBuffer(buffer js.Value) error {
 	source := w.audioCtx.Call("createBufferSource")
 	source.Set("buffer", buffer)
-
-	// Connect to the output (speakers)
 	source.Call("connect", w.audioCtx.Call("destination"))
-
-	// Start playback immediately
 	source.Call("start")
 	return nil
 }
