@@ -716,18 +716,8 @@ func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color 
 // PlaySoundFile plays an audio file by path using the Web Audio API.
 // It ensures the AudioContext is resumed before playback, as required by browser policies.
 func (w *wasmWindow) PlaySoundFile(path string) error {
-	// Ensure the audio context is running — required before calling start()
-	// Browsers suspend AudioContext until a user gesture occurs
 	if w.audioCtx.Get("state").String() == "suspended" {
-		promise := w.audioCtx.Call("resume")
-		done := make(chan struct{})
-
-		// Wait for the resume() promise to resolve
-		promise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			close(done)
-			return nil
-		}))
-		<-done
+		w.audioCtx.Call("resume")
 	}
 
 	// Load (or retrieve cached) audio buffer
