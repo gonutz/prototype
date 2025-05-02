@@ -28,6 +28,8 @@ type wasmWindow struct {
 	audioBuffers   map[string]js.Value
 }
 
+// RunWindow initializes a WebAssembly window with an HTML canvas element,
+// sets up input and rendering, and starts the main update loop.
 func RunWindow(title string, width, height int, update UpdateFunction) error {
 	doc := js.Global().Get("document")
 	canvas := doc.Call("getElementById", "gameCanvas")
@@ -39,6 +41,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	ctx := canvas.Call("getContext", "2d")
 
+	// Create the wasmWindow instance with input states, rendering context, and audio
 	win := &wasmWindow{
 		update:       update,
 		canvas:       canvas,
@@ -53,6 +56,15 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		audioBuffers: make(map[string]js.Value),
 	}
 
+	// Ensure the audio context is resumed on first user gesture (required by browsers)
+	js.Global().Call("addEventListener", "keydown", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		if win.audioCtx.Get("state").String() == "suspended" {
+			win.audioCtx.Call("resume")
+		}
+		return nil
+	}))
+
+	// Register keyboard input handlers
 	js.Global().Call("addEventListener", "keydown", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		event := args[0]
 		code := event.Get("code").String()
@@ -76,16 +88,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return nil
 	}))
 
-	js.Global().Call("addEventListener", "keyup", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
-		code := event.Get("code").String()
-		key := toKey(code)
-		if key != 0 {
-			win.keyDown[key] = false
-		}
-		return nil
-	}))
-
+	// Register character input (text entry)
 	js.Global().Call("addEventListener", "keypress", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		event := args[0]
 		char := rune(event.Get("key").String()[0])
@@ -93,6 +96,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return nil
 	}))
 
+	// Mouse movement tracking relative to canvas
 	canvas.Call("addEventListener", "mousemove", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		event := args[0]
 		bounds := canvas.Call("getBoundingClientRect")
@@ -103,6 +107,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return nil
 	}))
 
+	// Mouse button down + record click
 	canvas.Call("addEventListener", "mousedown", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		event := args[0]
 		button := event.Get("button").Int()
@@ -115,6 +120,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return nil
 	}))
 
+	// Mouse button up
 	canvas.Call("addEventListener", "mouseup", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		event := args[0]
 		button := event.Get("button").Int()
@@ -122,31 +128,29 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		return nil
 	}))
 
+	// Mouse wheel input (used for scroll-like behavior)
 	canvas.Call("addEventListener", "wheel", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		event := args[0]
 		deltaX := event.Get("deltaX").Float()
 		deltaY := event.Get("deltaY").Float()
 
-		// Normalize direction (scrolling "up" is usually negative)
 		win.wheelX += deltaX
 		win.wheelY += deltaY
 
-		// Prevent page from scrolling
-		event.Call("preventDefault")
+		event.Call("preventDefault") // prevent page scrolling
 		return nil
 	}))
 
-	//NOTE: We need to create it with: <canvas id="gameCanvas" width="800" height="600" style="touch-action:none;"></canvas>
-
-	// Call update loop using requestAnimationFrame
+	// Main render loop using requestAnimationFrame
 	var renderFrame js.Func
 	renderFrame = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		if win.running {
 			win.update(win)
 
+			// Reset transient input state between frames
 			clicks := win.clicks
-			win.clicks = nil // reset for next frame
-			win.clicks = append(win.clicks[:0], clicks...)
+			win.clicks = nil
+			win.clicks = append(win.clicks[:0], clicks...) // reuse slice
 			win.wheelX = 0
 			win.wheelY = 0
 			win.pressedKeys = nil
@@ -158,14 +162,19 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 	js.Global().Call("requestAnimationFrame", renderFrame)
 
-	// Prevent main from exiting
+	// Prevent Go main from exiting (WASM requires this to keep running)
 	select {}
 }
 
+// MathPi returns the value of the mathematical constant π (Pi)
+// by accessing the JavaScript Math.PI global value.
 func MathPi() float64 {
 	return js.Global().Get("Math").Get("PI").Float()
 }
 
+// setColor sets both fill and stroke styles on the canvas context
+// based on the provided RGBA color. Each color component is converted
+// to its 0–255 representation for use with CSS-style RGBA strings.
 func (w *wasmWindow) setColor(c Color) {
 	r := int(c.R * 255)
 	g := int(c.G * 255)
@@ -175,7 +184,13 @@ func (w *wasmWindow) setColor(c Color) {
 	w.ctx.Set("strokeStyle", fmt.Sprintf("rgba(%d,%d,%d,%f)", r, g, b, a))
 }
 
+// loadImage loads an image from the given path and returns the corresponding
+// JavaScript image element. The result is cached to avoid redundant network requests.
+//
+// The function sets up onload and onerror callbacks to resolve a Go channel
+// once the image is successfully loaded or has failed to load.
 func (w *wasmWindow) loadImage(path string) (js.Value, error) {
+	// Return cached image if already loaded
 	if img, ok := w.imageCache[path]; ok {
 		return img, nil
 	}
@@ -184,26 +199,37 @@ func (w *wasmWindow) loadImage(path string) (js.Value, error) {
 	var img js.Value = js.Global().Get("Image").New()
 	var err error
 
+	// Called when image finishes loading successfully
 	onLoad := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		w.imageCache[path] = img
 		close(done)
 		return nil
 	})
+
+	// Called when image fails to load
 	onError := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		err = fmt.Errorf("failed to load image: %s", path)
 		close(done)
 		return nil
 	})
 
+	// Assign event handlers and set the image source to trigger loading
 	img.Set("onload", onLoad)
 	img.Set("onerror", onError)
 	img.Set("src", path)
 
+	// Block until either onload or onerror fires
 	<-done
 	return img, err
 }
 
+// loadSoundFile fetches and decodes an audio file from the given path using the Web Audio API.
+// It returns a decoded AudioBuffer that can be played via PlaySoundFile.
+//
+// The result is cached in audioBuffers to avoid redundant decoding on repeated calls.
+// This function blocks using a channel until the asynchronous JS fetch and decode are complete.
 func (w *wasmWindow) loadSoundFile(path string) (js.Value, error) {
+	// Return cached buffer if already loaded
 	if buffer, ok := w.audioBuffers[path]; ok {
 		return buffer, nil
 	}
@@ -217,13 +243,17 @@ func (w *wasmWindow) loadSoundFile(path string) (js.Value, error) {
 		resp := args[0]
 		resp.Call("arrayBuffer").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			arrayBuffer := args[0]
+
+			// Decode the ArrayBuffer into an AudioBuffer using decodeAudioData
 			w.audioCtx.Call("decodeAudioData", arrayBuffer,
+				// Success callback
 				js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 					result = args[0]
 					w.audioBuffers[path] = result
 					close(done)
 					return nil
 				}),
+				// Error callback
 				js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 					err = fmt.Errorf("failed to decode audio: %s", path)
 					close(done)
@@ -654,31 +684,66 @@ func (w *wasmWindow) DrawText(text string, x, y int, color Color) {
 	w.DrawScaledText(text, x, y, 1.0, color)
 }
 
+// DrawScaledText renders a string of text at the given position with a scaling factor and color.
+// Text is drawn using a monospace font, and supports multi-line input (lines split by '\n').
 func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color Color) {
+	// Ignore zero or negative scale
 	if scale <= 0 {
 		return
 	}
 
+	// Set fill color for the text
 	w.setColor(color)
+
+	// Compute font size based on scaling factor
 	fontSize := 16.0 * float64(scale) // base size of 16, feel free to tweak
+
+	// Apply font style to canvas context (monospace font for uniform spacing)
 	w.ctx.Set("font", fmt.Sprintf("%.2fpx monospace", fontSize))
+
+	// Split the input into lines
 	lines := strings.Split(text, "\n")
+
+	// Define line spacing as 1.2x font size
 	lineHeight := int(fontSize * 1.2) // line spacing
 
+	// Draw each line at its vertical offset
 	for i, line := range lines {
 		w.ctx.Call("fillText", line, x, y+i*lineHeight)
 	}
 }
 
+// PlaySoundFile plays an audio file by path using the Web Audio API.
+// It ensures the AudioContext is resumed before playback, as required by browser policies.
 func (w *wasmWindow) PlaySoundFile(path string) error {
+	// Ensure the audio context is running — required before calling start()
+	// Browsers suspend AudioContext until a user gesture occurs
+	if w.audioCtx.Get("state").String() == "suspended" {
+		promise := w.audioCtx.Call("resume")
+		done := make(chan struct{})
+
+		// Wait for the resume() promise to resolve
+		promise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			close(done)
+			return nil
+		}))
+		<-done
+	}
+
+	// Load (or retrieve cached) audio buffer
 	buffer, err := w.loadSoundFile(path)
 	if err != nil {
 		return err
 	}
 
+	// Create an audio buffer source node
 	source := w.audioCtx.Call("createBufferSource")
 	source.Set("buffer", buffer)
+
+	// Connect to the output (speakers)
 	source.Call("connect", w.audioCtx.Call("destination"))
+
+	// Start playback immediately
 	source.Call("start")
 	return nil
 }
