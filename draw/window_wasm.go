@@ -6,26 +6,41 @@ package draw
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"syscall/js"
 )
 
 type wasmWindow struct {
-	update         UpdateFunction
-	canvas         js.Value
-	ctx            js.Value
-	width, height  int
-	running        bool
-	keyDown        map[Key]bool
-	pressedKeys    []Key
-	typedChars     []rune
-	mouseX, mouseY int
-	mouseDown      map[MouseButton]bool
-	wheelX         float64
-	wheelY         float64
-	clicks         []MouseClick
-	imageCache     map[string]js.Value
-	audioCtx       js.Value
-	audioBuffers   map[string]js.Value
+	update          UpdateFunction
+	canvas          js.Value
+	ctx             js.Value
+	width, height   int
+	running         bool
+	keyDown         map[Key]bool
+	pressedKeys     []Key
+	typedChars      []rune
+	mouseX, mouseY  int
+	mouseDown       map[MouseButton]bool
+	wheelX          float64
+	wheelY          float64
+	clicks          []MouseClick
+	imageCache      map[string]js.Value
+	imagesLoaded    chan struct{}
+	pendingImages   map[string]bool
+	audioCtx        js.Value
+	audioBuffers    map[string]js.Value
+	eventHandlers   []js.Func
+	closeImagesOnce sync.Once
+}
+
+func (w *wasmWindow) bindEvent(target js.Value, event string, handler func(js.Value)) js.Func {
+	jsFunc := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		handler(args[0])
+		return nil
+	})
+	target.Call("addEventListener", event, jsFunc)
+	w.eventHandlers = append(w.eventHandlers, jsFunc)
+	return jsFunc
 }
 
 // RunWindow initializes a WebAssembly window with an HTML canvas element,
@@ -56,90 +71,71 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		audioBuffers: make(map[string]js.Value),
 	}
 
-	// Ensure the audio context is resumed on first user gesture (required by browsers)
-	js.Global().Call("addEventListener", "keydown", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+	win.pendingImages = make(map[string]bool)
+	win.imagesLoaded = make(chan struct{})
+
+	// Handles key press events: resumes audio and tracks pressed keys.
+	win.bindEvent(js.Global(), "keydown", func(e js.Value) {
+		code := e.Get("code").String()
+		key := toKey(code)
+
 		if win.audioCtx.Get("state").String() == "suspended" {
 			win.audioCtx.Call("resume")
 		}
-		return nil
-	}))
 
-	// Register keyboard input handlers
-	js.Global().Call("addEventListener", "keydown", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
-		code := event.Get("code").String()
-		key := toKey(code)
-		if key != 0 {
-			if !win.keyDown[key] {
-				win.pressedKeys = append(win.pressedKeys, key)
-			}
-			win.keyDown[key] = true
+		if key != 0 && !win.keyDown[key] {
+			win.pressedKeys = append(win.pressedKeys, key)
 		}
-		return nil
-	}))
+		win.keyDown[key] = true
+	})
 
-	js.Global().Call("addEventListener", "keyup", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
-		code := event.Get("code").String()
+	// Handles key release events
+	win.bindEvent(js.Global(), "keyup", func(e js.Value) {
+		code := e.Get("code").String()
 		key := toKey(code)
 		if key != 0 {
 			win.keyDown[key] = false
 		}
-		return nil
-	}))
+	})
 
-	// Register character input (text entry)
-	js.Global().Call("addEventListener", "keypress", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
-		char := rune(event.Get("key").String()[0])
-		win.typedChars = append(win.typedChars, char)
-		return nil
-	}))
+	// Character input (text entry)
+	win.bindEvent(js.Global(), "keypress", func(e js.Value) {
+		keyStr := e.Get("key").String()
+		if len(keyStr) > 0 {
+			win.typedChars = append(win.typedChars, rune(keyStr[0]))
+		}
+	})
 
-	// Mouse movement tracking relative to canvas
-	canvas.Call("addEventListener", "mousemove", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
+	// Mouse movement tracking
+	win.bindEvent(canvas, "mousemove", func(e js.Value) {
 		bounds := canvas.Call("getBoundingClientRect")
-		wX := event.Get("clientX").Int() - bounds.Get("left").Int()
-		wY := event.Get("clientY").Int() - bounds.Get("top").Int()
-		win.mouseX = wX
-		win.mouseY = wY
-		return nil
-	}))
+		win.mouseX = e.Get("clientX").Int() - bounds.Get("left").Int()
+		win.mouseY = e.Get("clientY").Int() - bounds.Get("top").Int()
+	})
 
-	// Mouse button down + record click
-	canvas.Call("addEventListener", "mousedown", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
-		button := event.Get("button").Int()
+	// Mouse button down
+	win.bindEvent(canvas, "mousedown", func(e js.Value) {
+		button := e.Get("button").Int()
 		win.mouseDown[MouseButton(button)] = true
 		win.clicks = append(win.clicks, MouseClick{
 			X:      win.mouseX,
 			Y:      win.mouseY,
 			Button: MouseButton(button),
 		})
-		return nil
-	}))
+	})
 
 	// Mouse button up
-	canvas.Call("addEventListener", "mouseup", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
-		button := event.Get("button").Int()
+	win.bindEvent(canvas, "mouseup", func(e js.Value) {
+		button := e.Get("button").Int()
 		win.mouseDown[MouseButton(button)] = false
-		return nil
-	}))
+	})
 
-	// Mouse wheel input (used for scroll-like behavior)
-	canvas.Call("addEventListener", "wheel", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		event := args[0]
-		deltaX := event.Get("deltaX").Float()
-		deltaY := event.Get("deltaY").Float()
-
-		win.wheelX += deltaX
-		win.wheelY += deltaY
-
-		event.Call("preventDefault") // prevent page scrolling
-		return nil
-	}))
+	// Mouse wheel
+	win.bindEvent(canvas, "wheel", func(e js.Value) {
+		win.wheelX += e.Get("deltaX").Float()
+		win.wheelY += e.Get("deltaY").Float()
+		e.Call("preventDefault") // prevent page scroll
+	})
 
 	// Main render loop using requestAnimationFrame
 	var renderFrame js.Func
@@ -190,37 +186,51 @@ func (w *wasmWindow) setColor(c Color) {
 // The function sets up onload and onerror callbacks to resolve a Go channel
 // once the image is successfully loaded or has failed to load.
 func (w *wasmWindow) loadImage(path string) (js.Value, error) {
-	// Return cached image if already loaded
-	if img, ok := w.imageCache[path]; ok {
+	if img, ok := w.imageCache[path]; ok && img.Truthy() {
 		return img, nil
 	}
 
-	done := make(chan struct{})
-	var img js.Value = js.Global().Get("Image").New()
-	var err error
+	if _, loading := w.pendingImages[path]; loading {
+		return js.Null(), fmt.Errorf("image still loading: %s", path)
+	}
 
-	// Called when image finishes loading successfully
-	onLoad := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+	w.pendingImages[path] = true
+
+	img := js.Global().Get("Image").New()
+
+	var onLoadFunc, onErrorFunc js.Func
+
+	cleanup := func() {
+		delete(w.pendingImages, path)
+		if len(w.pendingImages) == 0 {
+			w.closeImagesOnce.Do(func() { close(w.imagesLoaded) })
+		}
+	}
+
+	// Allocate and bind onload handler
+	onLoadFunc = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		onLoadFunc.Release()
+		onErrorFunc.Release()
+
 		w.imageCache[path] = img
-		close(done)
+		cleanup()
 		return nil
 	})
 
-	// Called when image fails to load
-	onError := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		err = fmt.Errorf("failed to load image: %s", path)
-		close(done)
+	// Allocate and bind onerror handler
+	onErrorFunc = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		onLoadFunc.Release()
+		onErrorFunc.Release()
+
+		cleanup()
 		return nil
 	})
 
-	// Assign event handlers and set the image source to trigger loading
-	img.Set("onload", onLoad)
-	img.Set("onerror", onError)
+	img.Set("onload", onLoadFunc)
+	img.Set("onerror", onErrorFunc)
 	img.Set("src", path)
 
-	// Block until either onload or onerror fires
-	<-done
-	return img, err
+	return js.Null(), fmt.Errorf("image still loading: %s", path)
 }
 
 // loadSoundFile fetches and decodes an audio file from the given path using the Web Audio API.
@@ -271,184 +281,107 @@ func (w *wasmWindow) loadSoundFile(path string) (js.Value, error) {
 	return result, err
 }
 
+var keyMap = map[string]Key{
+	"KeyA":         KeyA,
+	"KeyB":         KeyB,
+	"KeyC":         KeyC,
+	"KeyD":         KeyD,
+	"KeyE":         KeyE,
+	"KeyF":         KeyF,
+	"KeyG":         KeyG,
+	"KeyH":         KeyH,
+	"KeyI":         KeyI,
+	"KeyJ":         KeyJ,
+	"KeyK":         KeyK,
+	"KeyL":         KeyL,
+	"KeyM":         KeyM,
+	"KeyN":         KeyN,
+	"KeyO":         KeyO,
+	"KeyP":         KeyP,
+	"KeyQ":         KeyQ,
+	"KeyR":         KeyR,
+	"KeyS":         KeyS,
+	"KeyT":         KeyT,
+	"KeyU":         KeyU,
+	"KeyV":         KeyV,
+	"KeyW":         KeyW,
+	"KeyX":         KeyX,
+	"KeyY":         KeyY,
+	"KeyZ":         KeyZ,
+	"ArrowLeft":    KeyLeft,
+	"ArrowRight":   KeyRight,
+	"ArrowUp":      KeyUp,
+	"ArrowDown":    KeyDown,
+	"Enter":        KeyEnter,
+	"Space":        KeySpace,
+	"Escape":       KeyEscape,
+	"Backspace":    KeyBackspace,
+	"Delete":       KeyDelete,
+	"Insert":       KeyInsert,
+	"Home":         KeyHome,
+	"End":          KeyEnd,
+	"PageUp":       KeyPageUp,
+	"PageDown":     KeyPageDown,
+	"ShiftLeft":    KeyLeftShift,
+	"ShiftRight":   KeyRightShift,
+	"ControlLeft":  KeyLeftControl,
+	"ControlRight": KeyRightControl,
+	"AltLeft":      KeyLeftAlt,
+	"AltRight":     KeyRightAlt,
+	"Tab":          KeyTab,
+	"CapsLock":     KeyCapslock,
+	"NumEnter":     KeyNumEnter,
+	"NumPlus":      KeyNumAdd,
+	"NumMinus":     KeyNumSubtract,
+	"NumMultiply":  KeyNumMultiply,
+	"NumDivide":    KeyNumDivide,
+	"Num0":         KeyNum0,
+	"Num1":         KeyNum1,
+	"Num2":         KeyNum2,
+	"Num3":         KeyNum3,
+	"Num4":         KeyNum4,
+	"Num5":         KeyNum5,
+	"Num6":         KeyNum6,
+	"Num7":         KeyNum7,
+	"Num8":         KeyNum8,
+	"Num9":         KeyNum9,
+	"Digit0":       Key0,
+	"Digit1":       Key1,
+	"Digit2":       Key2,
+	"Digit3":       Key3,
+	"Digit4":       Key4,
+	"Digit5":       Key5,
+	"Digit6":       Key6,
+	"Digit7":       Key7,
+	"Digit8":       Key8,
+	"Digit9":       Key9,
+	"KeyF1":        KeyF1,
+	"KeyF2":        KeyF2,
+	"KeyF3":        KeyF3,
+	"KeyF4":        KeyF4,
+	"KeyF5":        KeyF5,
+	"KeyF6":        KeyF6,
+	"KeyF7":        KeyF7,
+	"KeyF8":        KeyF8,
+	"KeyF9":        KeyF9,
+	"KeyF10":       KeyF10,
+	"KeyF11":       KeyF11,
+	"KeyF12":       KeyF12,
+}
+
 func toKey(code string) Key {
-	switch code {
-	case "KeyA":
-		return KeyA
-	case "KeyB":
-		return KeyB
-	case "KeyC":
-		return KeyC
-	case "KeyD":
-		return KeyD
-	case "KeyE":
-		return KeyE
-	case "KeyF":
-		return KeyF
-	case "KeyG":
-		return KeyG
-	case "KeyH":
-		return KeyH
-	case "KeyI":
-		return KeyI
-	case "KeyJ":
-		return KeyJ
-	case "KeyK":
-		return KeyK
-	case "KeyL":
-		return KeyL
-	case "KeyM":
-		return KeyM
-	case "KeyN":
-		return KeyN
-	case "KeyO":
-		return KeyO
-	case "KeyP":
-		return KeyP
-	case "KeyQ":
-		return KeyQ
-	case "KeyR":
-		return KeyR
-	case "KeyS":
-		return KeyS
-	case "KeyT":
-		return KeyT
-	case "KeyU":
-		return KeyU
-	case "KeyV":
-		return KeyV
-	case "KeyW":
-		return KeyW
-	case "KeyX":
-		return KeyX
-	case "KeyY":
-		return KeyY
-	case "KeyZ":
-		return KeyZ
-	case "ArrowLeft":
-		return KeyLeft
-	case "ArrowRight":
-		return KeyRight
-	case "ArrowUp":
-		return KeyUp
-	case "ArrowDown":
-		return KeyDown
-	case "Enter":
-		return KeyEnter
-	case "Space":
-		return KeySpace
-	case "Escape":
-		return KeyEscape
-	case "Backspace":
-		return KeyBackspace
-	case "Delete":
-		return KeyDelete
-	case "Insert":
-		return KeyInsert
-	case "Home":
-		return KeyHome
-	case "End":
-		return KeyEnd
-	case "PageUp":
-		return KeyPageUp
-	case "PageDown":
-		return KeyPageDown
-	case "ShiftLeft":
-		return KeyLeftShift
-	case "ShiftRight":
-		return KeyRightShift
-	case "ControlLeft":
-		return KeyLeftControl
-	case "ControlRight":
-		return KeyRightControl
-	case "AltLeft":
-		return KeyLeftAlt
-	case "AltRight":
-		return KeyRightAlt
-	case "Tab":
-		return KeyTab
-	case "CapsLock":
-		return KeyCapslock
-	case "NumEnter":
-		return KeyNumEnter
-	case "NumPlus":
-		return KeyNumAdd
-	case "NumMinus":
-		return KeyNumSubtract
-	case "NumMultiply":
-		return KeyNumMultiply
-	case "NumDivide":
-		return KeyNumDivide
-	case "Num0":
-		return KeyNum0
-	case "Num1":
-		return KeyNum1
-	case "Num2":
-		return KeyNum2
-	case "Num3":
-		return KeyNum3
-	case "Num4":
-		return KeyNum4
-	case "Num5":
-		return KeyNum5
-	case "Num6":
-		return KeyNum6
-	case "Num7":
-		return KeyNum7
-	case "Num8":
-		return KeyNum8
-	case "Num9":
-		return KeyNum9
-	case "Digit0":
-		return Key0
-	case "Digit1":
-		return Key1
-	case "Digit2":
-		return Key2
-	case "Digit3":
-		return Key3
-	case "Digit4":
-		return Key4
-	case "Digit5":
-		return Key5
-	case "Digit6":
-		return Key6
-	case "Digit7":
-		return Key7
-	case "Digit8":
-		return Key8
-	case "Digit9":
-		return Key9
-	case "KeyF1":
-		return KeyF1
-	case "KeyF2":
-		return KeyF2
-	case "KeyF3":
-		return KeyF3
-	case "KeyF4":
-		return KeyF4
-	case "KeyF5":
-		return KeyF5
-	case "KeyF6":
-		return KeyF6
-	case "KeyF7":
-		return KeyF7
-	case "KeyF8":
-		return KeyF8
-	case "KeyF9":
-		return KeyF9
-	case "KeyF10":
-		return KeyF10
-	case "KeyF11":
-		return KeyF11
-	case "KeyF12":
-		return KeyF12
+	if k, ok := keyMap[code]; ok {
+		return k
 	}
 	return 0
 }
 
 func (w *wasmWindow) Close() {
 	w.running = false
+
+	for _, fn := range w.eventHandlers {
+		fn.Release()
+	}
 }
 
 func (w *wasmWindow) Size() (int, int) {
@@ -474,6 +407,8 @@ func (w *wasmWindow) ShowCursor(show bool) {
 	}
 }
 
+// WasKeyPressed returns true if the given key was pressed during this frame.
+// Use this for single-trigger events (e.g., jumping, opening menus).
 func (w *wasmWindow) WasKeyPressed(key Key) bool {
 	for _, k := range w.pressedKeys {
 		if k == key {
@@ -483,38 +418,51 @@ func (w *wasmWindow) WasKeyPressed(key Key) bool {
 	return false
 }
 
+// IsKeyDown returns true if the given key is currently held down.
+// Use this for continuous input (e.g., holding movement keys).
 func (w *wasmWindow) IsKeyDown(key Key) bool {
 	return w.keyDown[key]
 }
 
+// Characters returns a string of characters typed by the user during this frame.
+// Useful for text input fields or typing games.
 func (w *wasmWindow) Characters() string {
 	return string(w.typedChars)
 }
 
+// IsMouseDown returns true if the specified mouse button is currently pressed.
 func (w *wasmWindow) IsMouseDown(button MouseButton) bool {
 	return w.mouseDown[button]
 }
 
+// Clicks returns a slice of all mouse clicks registered during this frame.
+// Each MouseClick contains the position and button.
+// The slice is cleared after each update.
 func (w *wasmWindow) Clicks() []MouseClick {
 	return w.clicks
 }
 
+// MousePosition returns the current mouse cursor position relative to the canvas.
 func (w *wasmWindow) MousePosition() (int, int) {
 	return w.mouseX, w.mouseY
 }
 
+// MouseWheelX returns the accumulated horizontal scroll value for the current frame.
 func (w *wasmWindow) MouseWheelX() float64 {
 	return w.wheelX
 }
 
+// MouseWheelY returns the accumulated vertical scroll value for the current frame.
 func (w *wasmWindow) MouseWheelY() float64 {
 	return w.wheelY
 }
 
+// DrawPoint renders a single pixel (1x1 rectangle) at (x, y) using the specified color.
 func (w *wasmWindow) DrawPoint(x, y int, c Color) {
 	w.FillRect(x, y, 1, 1, c)
 }
 
+// DrawLine renders a straight line between (x1, y1) and (x2, y2) with the given color.
 func (w *wasmWindow) DrawLine(x1, y1, x2, y2 int, c Color) {
 	w.setColor(c)
 	w.ctx.Call("beginPath")
@@ -523,16 +471,19 @@ func (w *wasmWindow) DrawLine(x1, y1, x2, y2 int, c Color) {
 	w.ctx.Call("stroke")
 }
 
+// DrawRect outlines a rectangle using stroke style at the given position and size.
 func (w *wasmWindow) DrawRect(x, y, width, height int, c Color) {
 	w.setColor(c)
 	w.ctx.Call("strokeRect", x, y, width, height)
 }
 
+// FillRect renders a solid filled rectangle.
 func (w *wasmWindow) FillRect(x, y, width, height int, c Color) {
 	w.setColor(c)
 	w.ctx.Call("fillRect", x, y, width, height)
 }
 
+// DrawEllipse draws an outlined ellipse within the bounding rectangle at (x, y, width, height).
 func (w *wasmWindow) DrawEllipse(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
@@ -551,6 +502,7 @@ func (w *wasmWindow) DrawEllipse(x, y, width, height int, color Color) {
 	w.ctx.Call("stroke")
 }
 
+// FillEllipse draws a filled ellipse within the bounding rectangle.
 func (w *wasmWindow) FillEllipse(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
@@ -569,6 +521,8 @@ func (w *wasmWindow) FillEllipse(x, y, width, height int, color Color) {
 	w.ctx.Call("fill")
 }
 
+// ImageSize returns the native width and height of the image at the given path.
+// The image is loaded (or retrieved from cache) if needed.
 func (w *wasmWindow) ImageSize(path string) (int, int, error) {
 	img, err := w.loadImage(path)
 	if err != nil {
@@ -577,15 +531,18 @@ func (w *wasmWindow) ImageSize(path string) (int, int, error) {
 	return img.Get("width").Int(), img.Get("height").Int(), nil
 }
 
+// DrawImageFile draws an image at the given position.
+// If the image is not loaded yet, nothing is drawn.
 func (w *wasmWindow) DrawImageFile(path string, x, y int) error {
 	img, err := w.loadImage(path)
-	if err != nil {
-		return err
+	if err != nil || !img.Truthy() {
+		return nil
 	}
 	w.ctx.Call("drawImage", img, x, y)
 	return nil
 }
 
+// DrawImageFileTo draws an image scaled to a new size and rotated (in degrees) around its center.
 func (w *wasmWindow) DrawImageFileTo(path string, x, y, w2, h2, rot int) error {
 	img, err := w.loadImage(path)
 	if err != nil {
@@ -610,6 +567,7 @@ func (w *wasmWindow) DrawImageFileTo(path string, x, y, w2, h2, rot int) error {
 	return nil
 }
 
+// DrawImageFileRotated draws the image at (x, y), rotated by `rot` degrees about its center.
 func (w *wasmWindow) DrawImageFileRotated(path string, x, y, rot int) error {
 	img, err := w.loadImage(path)
 	if err != nil {
@@ -627,6 +585,8 @@ func (w *wasmWindow) DrawImageFileRotated(path string, x, y, rot int) error {
 	return nil
 }
 
+// DrawImageFilePart draws a subsection of the image, defined by source rect (sx, sy, sw, sh),
+// to a destination rect (dx, dy, dw, dh) and applies rotation (degrees) around its center.
 func (w *wasmWindow) DrawImageFilePart(path string,
 	sx, sy, sw, sh, dx, dy, dw, dh, rot int,
 ) error {
@@ -655,10 +615,13 @@ func (w *wasmWindow) BlurText(blur bool) {
 	w.ctx.Set("imageSmoothingEnabled", blur)
 }
 
+// GetTextSize returns the width and height (in pixels) required to render the given text at default scale.
 func (w *wasmWindow) GetTextSize(text string) (int, int) {
 	return w.GetScaledTextSize(text, 1.0)
 }
 
+// GetScaledTextSize returns the pixel dimensions required to render text at the given scale.
+// Line breaks are taken into account.
 func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut int) {
 	if scale <= 0 {
 		return 0, 0
@@ -680,6 +643,7 @@ func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut i
 	return maxWidth, lineHeight * len(lines)
 }
 
+// DrawText renders a string at (x, y) using the given color and default scale (1.0).
 func (w *wasmWindow) DrawText(text string, x, y int, color Color) {
 	w.DrawScaledText(text, x, y, 1.0, color)
 }
@@ -766,7 +730,7 @@ func (w *wasmWindow) asyncLoadSound(path string, callback func(js.Value, error))
 func (w *wasmWindow) playBuffer(buffer js.Value) error {
 	source := w.audioCtx.Call("createBufferSource")
 	source.Set("buffer", buffer)
-	source.Call("connect", w.audioCtx.Call("destination"))
+	source.Call("connect", w.audioCtx.Get("destination"))
 	source.Call("start")
 	return nil
 }
