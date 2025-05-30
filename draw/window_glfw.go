@@ -38,6 +38,8 @@ type window struct {
 	clicks         []MouseClick
 	mouseX, mouseY int
 	wheelX, wheelY float64
+	blurImages     bool
+	blurText       bool
 }
 
 // RunWindow creates a new window and calls update 60 times per second.
@@ -502,6 +504,15 @@ func (w *window) DrawImageFileTo(path string, x, y, width, height, degrees int) 
 
 	gl.Enable(gl.TEXTURE_2D)
 	gl.BindTexture(gl.TEXTURE_2D, tex.id)
+
+	if w.blurImages {
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	} else {
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	}
+
 	gl.Begin(gl.QUADS)
 
 	gl.Color4f(1, 1, 1, 1)
@@ -561,6 +572,15 @@ func (w *window) DrawImageFilePart(
 
 	gl.Enable(gl.TEXTURE_2D)
 	gl.BindTexture(gl.TEXTURE_2D, tex.id)
+
+	if w.blurImages {
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	} else {
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	}
+
 	gl.Begin(gl.QUADS)
 
 	gl.Color4f(1, 1, 1, 1)
@@ -588,11 +608,11 @@ func (w *window) DrawImageFilePart(
 type pointf struct{ x, y float32 }
 
 func (w *window) BlurImages(blur bool) {
-	// TODO Implement this.
+	w.blurImages = blur
 }
 
 func (w *window) BlurText(blur bool) {
-	// TODO Implement this.
+	w.blurText = blur
 }
 
 func (w *window) GetTextSize(text string) (width, height int) {
@@ -636,6 +656,14 @@ func (w *window) DrawScaledText(text string, x, y int, scale float32, color Colo
 
 	gl.Enable(gl.TEXTURE_2D)
 	gl.BindTexture(gl.TEXTURE_2D, fontTexture.id)
+
+	if w.blurText {
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	} else {
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	}
 
 	gl.Begin(gl.QUADS)
 	for _, r := range text {
