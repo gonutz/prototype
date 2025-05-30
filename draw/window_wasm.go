@@ -5,6 +5,7 @@ package draw
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"syscall/js"
@@ -16,11 +17,11 @@ type wasmWindow struct {
 	ctx             js.Value
 	width, height   int
 	running         bool
-	keyDown         map[Key]bool
+	keyDown         [keyCount]bool
 	pressedKeys     []Key
 	typedChars      []rune
 	mouseX, mouseY  int
-	mouseDown       map[MouseButton]bool
+	mouseDown       [mouseButtonCount]bool
 	wheelX          float64
 	wheelY          float64
 	clicks          []MouseClick
@@ -43,10 +44,11 @@ func (w *wasmWindow) bindEvent(target js.Value, event string, handler func(js.Va
 	return jsFunc
 }
 
-// RunWindow initializes a WebAssembly window with an HTML canvas element,
-// sets up input and rendering, and starts the main update loop.
+// RunWindow initializes a WebAssembly window with an HTML canvas element, sets
+// up input and rendering, and starts the main update loop.
 func RunWindow(title string, width, height int, update UpdateFunction) error {
 	doc := js.Global().Get("document")
+	doc.Set("title", title)
 	canvas := doc.Call("getElementById", "gameCanvas")
 	if !canvas.Truthy() {
 		return js.Error{Value: js.ValueOf("canvas element not found")}
@@ -64,8 +66,6 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		width:        width,
 		height:       height,
 		running:      true,
-		keyDown:      make(map[Key]bool),
-		mouseDown:    make(map[MouseButton]bool),
 		imageCache:   make(map[string]js.Value),
 		audioCtx:     js.Global().Get("AudioContext").New(),
 		audioBuffers: make(map[string]js.Value),
@@ -116,18 +116,22 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// Mouse button down
 	win.bindEvent(canvas, "mousedown", func(e js.Value) {
 		button := e.Get("button").Int()
-		win.mouseDown[MouseButton(button)] = true
-		win.clicks = append(win.clicks, MouseClick{
-			X:      win.mouseX,
-			Y:      win.mouseY,
-			Button: MouseButton(button),
-		})
+		if 0 <= button && button < int(mouseButtonCount) {
+			win.mouseDown[button] = true
+			win.clicks = append(win.clicks, MouseClick{
+				X:      win.mouseX,
+				Y:      win.mouseY,
+				Button: MouseButton(button),
+			})
+		}
 	})
 
 	// Mouse button up
 	win.bindEvent(canvas, "mouseup", func(e js.Value) {
 		button := e.Get("button").Int()
-		win.mouseDown[MouseButton(button)] = false
+		if 0 <= button && button < int(mouseButtonCount) {
+			win.mouseDown[button] = false
+		}
 	})
 
 	// Mouse wheel
@@ -140,32 +144,23 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// Main render loop using requestAnimationFrame
 	var renderFrame js.Func
 	renderFrame = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		win.FillRect(0, 0, win.width, win.height, Black)
 		if win.running {
 			win.update(win)
-
-			// Reset transient input state between frames
-			clicks := win.clicks
-			win.clicks = nil
-			win.clicks = append(win.clicks[:0], clicks...) // reuse slice
+			// Reset input state between frames.
 			win.wheelX = 0
 			win.wheelY = 0
-			win.pressedKeys = nil
-			win.typedChars = nil
-
-			js.Global().Call("requestAnimationFrame", renderFrame)
+			win.clicks = win.clicks[:0]
+			win.pressedKeys = win.pressedKeys[:0]
+			win.typedChars = win.typedChars[:0]
 		}
+		js.Global().Call("requestAnimationFrame", renderFrame)
 		return nil
 	})
 	js.Global().Call("requestAnimationFrame", renderFrame)
 
 	// Prevent Go main from exiting (WASM requires this to keep running)
 	select {}
-}
-
-// MathPi returns the value of the mathematical constant π (Pi)
-// by accessing the JavaScript Math.PI global value.
-func MathPi() float64 {
-	return js.Global().Get("Math").Get("PI").Float()
 }
 
 // setColor sets both fill and stroke styles on the canvas context
@@ -308,43 +303,6 @@ var keyMap = map[string]Key{
 	"KeyX":         KeyX,
 	"KeyY":         KeyY,
 	"KeyZ":         KeyZ,
-	"ArrowLeft":    KeyLeft,
-	"ArrowRight":   KeyRight,
-	"ArrowUp":      KeyUp,
-	"ArrowDown":    KeyDown,
-	"Enter":        KeyEnter,
-	"Space":        KeySpace,
-	"Escape":       KeyEscape,
-	"Backspace":    KeyBackspace,
-	"Delete":       KeyDelete,
-	"Insert":       KeyInsert,
-	"Home":         KeyHome,
-	"End":          KeyEnd,
-	"PageUp":       KeyPageUp,
-	"PageDown":     KeyPageDown,
-	"ShiftLeft":    KeyLeftShift,
-	"ShiftRight":   KeyRightShift,
-	"ControlLeft":  KeyLeftControl,
-	"ControlRight": KeyRightControl,
-	"AltLeft":      KeyLeftAlt,
-	"AltRight":     KeyRightAlt,
-	"Tab":          KeyTab,
-	"CapsLock":     KeyCapslock,
-	"NumEnter":     KeyNumEnter,
-	"NumPlus":      KeyNumAdd,
-	"NumMinus":     KeyNumSubtract,
-	"NumMultiply":  KeyNumMultiply,
-	"NumDivide":    KeyNumDivide,
-	"Num0":         KeyNum0,
-	"Num1":         KeyNum1,
-	"Num2":         KeyNum2,
-	"Num3":         KeyNum3,
-	"Num4":         KeyNum4,
-	"Num5":         KeyNum5,
-	"Num6":         KeyNum6,
-	"Num7":         KeyNum7,
-	"Num8":         KeyNum8,
-	"Num9":         KeyNum9,
 	"Digit0":       Key0,
 	"Digit1":       Key1,
 	"Digit2":       Key2,
@@ -355,6 +313,16 @@ var keyMap = map[string]Key{
 	"Digit7":       Key7,
 	"Digit8":       Key8,
 	"Digit9":       Key9,
+	"Num0":         KeyNum0,
+	"Num1":         KeyNum1,
+	"Num2":         KeyNum2,
+	"Num3":         KeyNum3,
+	"Num4":         KeyNum4,
+	"Num5":         KeyNum5,
+	"Num6":         KeyNum6,
+	"Num7":         KeyNum7,
+	"Num8":         KeyNum8,
+	"Num9":         KeyNum9,
 	"KeyF1":        KeyF1,
 	"KeyF2":        KeyF2,
 	"KeyF3":        KeyF3,
@@ -367,21 +335,56 @@ var keyMap = map[string]Key{
 	"KeyF10":       KeyF10,
 	"KeyF11":       KeyF11,
 	"KeyF12":       KeyF12,
+	"KeyF13":       KeyF13,
+	"KeyF14":       KeyF14,
+	"KeyF15":       KeyF15,
+	"KeyF16":       KeyF16,
+	"KeyF17":       KeyF17,
+	"KeyF18":       KeyF18,
+	"KeyF19":       KeyF19,
+	"KeyF20":       KeyF20,
+	"KeyF21":       KeyF21,
+	"KeyF22":       KeyF22,
+	"KeyF23":       KeyF23,
+	"KeyF24":       KeyF24,
+	"Enter":        KeyEnter,
+	"NumEnter":     KeyNumEnter,
+	"ControlLeft":  KeyLeftControl,
+	"ControlRight": KeyRightControl,
+	"ShiftLeft":    KeyLeftShift,
+	"ShiftRight":   KeyRightShift,
+	"AltLeft":      KeyLeftAlt,
+	"AltRight":     KeyRightAlt,
+	"ArrowLeft":    KeyLeft,
+	"ArrowRight":   KeyRight,
+	"ArrowUp":      KeyUp,
+	"ArrowDown":    KeyDown,
+	"Escape":       KeyEscape,
+	"Space":        KeySpace,
+	"Backspace":    KeyBackspace,
+	"Tab":          KeyTab,
+	"Home":         KeyHome,
+	"End":          KeyEnd,
+	"PageDown":     KeyPageDown,
+	"PageUp":       KeyPageUp,
+	"Delete":       KeyDelete,
+	"Insert":       KeyInsert,
+	"NumPlus":      KeyNumAdd,
+	"NumMinus":     KeyNumSubtract,
+	"NumMultiply":  KeyNumMultiply,
+	"NumDivide":    KeyNumDivide,
+	"CapsLock":     KeyCapslock,
+	// TODO KeyPrint
+	// TODO KeyPause
 }
 
 func toKey(code string) Key {
-	if k, ok := keyMap[code]; ok {
-		return k
-	}
-	return 0
+	return keyMap[code] // Defaults to 0 which is good.
 }
 
 func (w *wasmWindow) Close() {
 	w.running = false
-
-	for _, fn := range w.eventHandlers {
-		fn.Release()
-	}
+	// TODO Stop all sounds.
 }
 
 func (w *wasmWindow) Size() (int, int) {
@@ -497,7 +500,7 @@ func (w *wasmWindow) DrawEllipse(x, y, width, height int, color Color) {
 		height/2,   // radiusY
 		0,          // rotation in radians
 		0,          // startAngle
-		2*MathPi(), // endAngle
+		2*math.Pi,  // endAngle
 	)
 	w.ctx.Call("stroke")
 }
@@ -516,7 +519,7 @@ func (w *wasmWindow) FillEllipse(x, y, width, height int, color Color) {
 		height/2,
 		0,
 		0,
-		2*MathPi(),
+		2*math.Pi,
 	)
 	w.ctx.Call("fill")
 }
@@ -554,7 +557,7 @@ func (w *wasmWindow) DrawImageFileTo(path string, x, y, w2, h2, rot int) error {
 
 	// Translate to center of target rect
 	w.ctx.Call("translate", x+w2/2, y+h2/2)
-	w.ctx.Call("rotate", float64(rot)*MathPi()/180)
+	w.ctx.Call("rotate", float64(rot)*math.Pi/180)
 
 	// Draw centered image
 	w.ctx.Call("drawImage", img,
@@ -579,7 +582,7 @@ func (w *wasmWindow) DrawImageFileRotated(path string, x, y, rot int) error {
 
 	w.ctx.Call("save")
 	w.ctx.Call("translate", x+w2/2, y+h2/2)
-	w.ctx.Call("rotate", float64(rot)*MathPi()/180)
+	w.ctx.Call("rotate", float64(rot)*math.Pi/180)
 	w.ctx.Call("drawImage", img, -w2/2, -h2/2)
 	w.ctx.Call("restore")
 	return nil
@@ -597,7 +600,7 @@ func (w *wasmWindow) DrawImageFilePart(path string,
 
 	w.ctx.Call("save")
 	w.ctx.Call("translate", dx+dw/2, dy+dh/2)
-	w.ctx.Call("rotate", float64(rot)*MathPi()/180)
+	w.ctx.Call("rotate", float64(rot)*math.Pi/180)
 	w.ctx.Call("drawImage",
 		img,
 		sx, sy, sw, sh, // source rect
@@ -703,7 +706,6 @@ func (w *wasmWindow) PlaySoundFile(path string) error {
 // Non-blocking async sound load using JS promises
 func (w *wasmWindow) asyncLoadSound(path string, callback func(js.Value, error)) {
 	fetchPromise := js.Global().Call("fetch", path)
-
 	fetchPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		resp := args[0]
 		resp.Call("arrayBuffer").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
