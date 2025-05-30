@@ -1,5 +1,5 @@
-//go:build sdl2 && !glfw
-// +build sdl2,!glfw
+//go:build sdl2 && !glfw && !js
+// +build sdl2,!glfw,!js
 
 package draw
 
