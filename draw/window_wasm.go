@@ -653,7 +653,7 @@ func (w *wasmWindow) BlurImages(blur bool) {
 }
 
 func (w *wasmWindow) BlurText(blur bool) {
-	w.ctx.Set("imageSmoothingEnabled", blur)
+	// TODO Figure out how we want to draw and blur text.
 }
 
 // GetTextSize returns the width and height (in pixels) required to render the given text at default scale.
