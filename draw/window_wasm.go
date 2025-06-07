@@ -468,10 +468,48 @@ func (w *wasmWindow) DrawPoint(x, y int, c Color) {
 // DrawLine renders a straight line between (x1, y1) and (x2, y2) with the given color.
 func (w *wasmWindow) DrawLine(x1, y1, x2, y2 int, c Color) {
 	w.setColor(c)
-	w.ctx.Call("beginPath")
-	w.ctx.Call("moveTo", x1, y1)
-	w.ctx.Call("lineTo", x2, y2)
-	w.ctx.Call("stroke")
+
+	// For extra nice pixels without the anti-aliasing, we use the Bresenham
+	// line drawing algorithm. This makes the web lines look the same as the
+	// desktop lines: pixelated.
+
+	dx := abs(x2 - x1)
+	dy := abs(y2 - y1)
+
+	sx := -1
+	if x1 < x2 {
+		sx = 1
+	}
+
+	sy := -1
+	if y1 < y2 {
+		sy = 1
+	}
+
+	err := dx - dy
+
+	for {
+		w.ctx.Call("fillRect", x1, y1, 1, 1)
+		if x1 == x2 && y1 == y2 {
+			break
+		}
+		e2 := 2 * err
+		if e2 > -dy {
+			err -= dy
+			x1 += sx
+		}
+		if e2 < dx {
+			err += dx
+			y1 += sy
+		}
+	}
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // DrawRect outlines a rectangle using stroke style at the given position and size.
