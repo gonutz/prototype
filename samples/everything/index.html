@@ -1,0 +1,23 @@
+<html>
+	<head>
+		<style>
+			body {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 100vh;
+				margin: 0;
+			}
+		</style>
+	</head>
+	<body>
+		<canvas id="gameCanvas" width="800" height="600"></canvas>
+		<script src="wasm_exec.js"></script>
+		<script>
+		  const go = new Go();
+		  WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+			go.run(result.instance);
+		  });
+		</script>
+	</body>
+</html>
