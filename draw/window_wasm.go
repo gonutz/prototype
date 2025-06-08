@@ -30,7 +30,6 @@ type wasmWindow struct {
 	pendingImages   map[string]bool
 	audioCtx        js.Value
 	audioBuffers    map[string]js.Value
-	eventHandlers   []js.Func
 	closeImagesOnce sync.Once
 }
 
@@ -40,7 +39,6 @@ func (w *wasmWindow) bindEvent(target js.Value, event string, handler func(js.Va
 		return nil
 	})
 	target.Call("addEventListener", event, jsFunc)
-	w.eventHandlers = append(w.eventHandlers, jsFunc)
 	return jsFunc
 }
 
@@ -139,6 +137,11 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		win.wheelX += e.Get("deltaX").Float()
 		win.wheelY += e.Get("deltaY").Float()
 		e.Call("preventDefault") // prevent page scroll
+	})
+
+	// Suppress right clicks triggering the context menu.
+	win.bindEvent(canvas, "contextmenu", func(e js.Value) {
+		e.Call("preventDefault")
 	})
 
 	// Main render loop using requestAnimationFrame

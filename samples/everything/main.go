@@ -112,7 +112,7 @@ func main() {
 
 		if lastKey != 0 {
 			text += "Last typed key: " + lastKey.String() + "\n"
-		}else {
+		} else {
 			text += "Last typed key:\n"
 		}
 
