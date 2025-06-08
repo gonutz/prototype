@@ -33,7 +33,7 @@ type wasmWindow struct {
 	closeImagesOnce sync.Once
 }
 
-func (w *wasmWindow) bindEvent(target js.Value, event string, handler func(js.Value)) js.Func {
+func bindEvent(target js.Value, event string, handler func(js.Value)) js.Func {
 	jsFunc := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		handler(args[0])
 		return nil
@@ -73,7 +73,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	win.imagesLoaded = make(chan struct{})
 
 	// Handles key press events: resumes audio and tracks pressed keys.
-	win.bindEvent(js.Global(), "keydown", func(e js.Value) {
+	bindEvent(js.Global(), "keydown", func(e js.Value) {
 		keyCode := e.Get("code").String()
 		keyValue := e.Get("key").String()
 		key := toKey(keyCode, keyValue)
@@ -91,7 +91,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	// Handles key release events
-	win.bindEvent(js.Global(), "keyup", func(e js.Value) {
+	bindEvent(js.Global(), "keyup", func(e js.Value) {
 		keyCode := e.Get("code").String()
 		keyValue := e.Get("key").String()
 		key := toKey(keyCode, keyValue)
@@ -102,7 +102,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	// Character input (text entry)
-	win.bindEvent(js.Global(), "keypress", func(e js.Value) {
+	bindEvent(js.Global(), "keypress", func(e js.Value) {
 		keyStr := e.Get("key").String()
 		if len(keyStr) > 0 {
 			win.typedChars = append(win.typedChars, rune(keyStr[0]))
@@ -110,14 +110,14 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	// Mouse movement tracking
-	win.bindEvent(canvas, "mousemove", func(e js.Value) {
+	bindEvent(canvas, "mousemove", func(e js.Value) {
 		bounds := canvas.Call("getBoundingClientRect")
 		win.mouseX = e.Get("clientX").Int() - bounds.Get("left").Int()
 		win.mouseY = e.Get("clientY").Int() - bounds.Get("top").Int()
 	})
 
 	// Mouse button down
-	win.bindEvent(canvas, "mousedown", func(e js.Value) {
+	bindEvent(canvas, "mousedown", func(e js.Value) {
 		button := e.Get("button").Int()
 		if 0 <= button && button < int(mouseButtonCount) {
 			win.mouseDown[button] = true
@@ -130,7 +130,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	// Mouse button up
-	win.bindEvent(canvas, "mouseup", func(e js.Value) {
+	bindEvent(canvas, "mouseup", func(e js.Value) {
 		button := e.Get("button").Int()
 		if 0 <= button && button < int(mouseButtonCount) {
 			win.mouseDown[button] = false
@@ -138,14 +138,14 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	// Mouse wheel
-	win.bindEvent(canvas, "wheel", func(e js.Value) {
+	bindEvent(canvas, "wheel", func(e js.Value) {
 		win.wheelX -= e.Get("deltaX").Float() / 100
 		win.wheelY -= e.Get("deltaY").Float() / 100
 		e.Call("preventDefault") // prevent page scroll
 	})
 
 	// Suppress right clicks triggering the context menu.
-	win.bindEvent(canvas, "contextmenu", func(e js.Value) {
+	bindEvent(canvas, "contextmenu", func(e js.Value) {
 		e.Call("preventDefault")
 	})
 
