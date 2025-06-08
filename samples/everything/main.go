@@ -95,6 +95,8 @@ func main() {
 		window.DrawRect(50, 440, 30, 40, draw.Yellow)
 		window.FillEllipse(90, 440, 30, 40, draw.Purple)
 		window.DrawEllipse(130, 440, 30, 40, draw.Blue)
+		window.DrawLine(170, 440, 250, 480, draw.LightBrown)
+		window.DrawLine(170, 445, 172, 447, draw.LightBlue)
 		imgW, imgH, _ := window.ImageSize("meds.png")
 		window.FillRect(9, 519, imgW+2, imgH+2, draw.DarkYellow)
 		window.DrawImageFile("meds.png", 10, 520)

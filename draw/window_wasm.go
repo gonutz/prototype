@@ -492,10 +492,10 @@ func (w *wasmWindow) DrawLine(x1, y1, x2, y2 int, c Color) {
 	err := dx - dy
 
 	for {
-		w.ctx.Call("fillRect", x1, y1, 1, 1)
 		if x1 == x2 && y1 == y2 {
 			break
 		}
+		w.ctx.Call("fillRect", x1, y1, 1, 1)
 		e2 := 2 * err
 		if e2 > -dy {
 			err -= dy
