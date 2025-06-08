@@ -234,7 +234,12 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		device.SetRenderState(d3d9.RS_SRCBLEND, d3d9.BLEND_SRCALPHA)
 		device.SetRenderState(d3d9.RS_DESTBLEND, d3d9.BLEND_INVSRCALPHA)
 		device.SetRenderState(d3d9.RS_ALPHABLENDENABLE, 1)
-		// use nearest neighbor texture filtering
+
+		device.SetSamplerState(0, d3d9.SAMP_ADDRESSU, d3d9.TADDRESS_BORDER)
+		device.SetSamplerState(0, d3d9.SAMP_ADDRESSV, d3d9.TADDRESS_BORDER)
+		device.SetSamplerState(0, d3d9.SAMP_BORDERCOLOR, 0)
+
+		// Use nearest neighbor texture filtering.
 		device.SetSamplerState(0, d3d9.SAMP_MINFILTER, d3d9.TEXF_NONE)
 		device.SetSamplerState(0, d3d9.SAMP_MAGFILTER, d3d9.TEXF_NONE)
 
