@@ -1257,7 +1257,7 @@ func rawInputToKey(kb w32.RAWKEYBOARD) (key Key, down bool) {
 			return KeyLeftShift, down
 		case w32.VK_RSHIFT:
 			return KeyRightShift, down
-		case w32.VK_PRINT:
+		case w32.VK_PRINT, w32.VK_SNAPSHOT:
 			return KeyPrint, down
 		case w32.VK_PAUSE:
 			return KeyPause, down

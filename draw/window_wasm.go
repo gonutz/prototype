@@ -74,8 +74,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	// Handles key press events: resumes audio and tracks pressed keys.
 	win.bindEvent(js.Global(), "keydown", func(e js.Value) {
-		code := e.Get("code").String()
-		key := toKey(code)
+		keyCode := e.Get("code").String()
+		keyValue := e.Get("key").String()
+		key := toKey(keyCode, keyValue)
 
 		if win.audioCtx.Get("state").String() == "suspended" {
 			win.audioCtx.Call("resume")
@@ -85,15 +86,19 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			win.pressedKeys = append(win.pressedKeys, key)
 		}
 		win.keyDown[key] = true
+
+		e.Call("preventDefault")
 	})
 
 	// Handles key release events
 	win.bindEvent(js.Global(), "keyup", func(e js.Value) {
-		code := e.Get("code").String()
-		key := toKey(code)
+		keyCode := e.Get("code").String()
+		keyValue := e.Get("key").String()
+		key := toKey(keyCode, keyValue)
 		if key != 0 {
 			win.keyDown[key] = false
 		}
+		e.Call("preventDefault")
 	})
 
 	// Character input (text entry)
@@ -280,109 +285,135 @@ func (w *wasmWindow) loadSoundFile(path string) (js.Value, error) {
 }
 
 var keyMap = map[string]Key{
-	"KeyA":         KeyA,
-	"KeyB":         KeyB,
-	"KeyC":         KeyC,
-	"KeyD":         KeyD,
-	"KeyE":         KeyE,
-	"KeyF":         KeyF,
-	"KeyG":         KeyG,
-	"KeyH":         KeyH,
-	"KeyI":         KeyI,
-	"KeyJ":         KeyJ,
-	"KeyK":         KeyK,
-	"KeyL":         KeyL,
-	"KeyM":         KeyM,
-	"KeyN":         KeyN,
-	"KeyO":         KeyO,
-	"KeyP":         KeyP,
-	"KeyQ":         KeyQ,
-	"KeyR":         KeyR,
-	"KeyS":         KeyS,
-	"KeyT":         KeyT,
-	"KeyU":         KeyU,
-	"KeyV":         KeyV,
-	"KeyW":         KeyW,
-	"KeyX":         KeyX,
-	"KeyY":         KeyY,
-	"KeyZ":         KeyZ,
-	"Digit0":       Key0,
-	"Digit1":       Key1,
-	"Digit2":       Key2,
-	"Digit3":       Key3,
-	"Digit4":       Key4,
-	"Digit5":       Key5,
-	"Digit6":       Key6,
-	"Digit7":       Key7,
-	"Digit8":       Key8,
-	"Digit9":       Key9,
-	"Num0":         KeyNum0,
-	"Num1":         KeyNum1,
-	"Num2":         KeyNum2,
-	"Num3":         KeyNum3,
-	"Num4":         KeyNum4,
-	"Num5":         KeyNum5,
-	"Num6":         KeyNum6,
-	"Num7":         KeyNum7,
-	"Num8":         KeyNum8,
-	"Num9":         KeyNum9,
-	"KeyF1":        KeyF1,
-	"KeyF2":        KeyF2,
-	"KeyF3":        KeyF3,
-	"KeyF4":        KeyF4,
-	"KeyF5":        KeyF5,
-	"KeyF6":        KeyF6,
-	"KeyF7":        KeyF7,
-	"KeyF8":        KeyF8,
-	"KeyF9":        KeyF9,
-	"KeyF10":       KeyF10,
-	"KeyF11":       KeyF11,
-	"KeyF12":       KeyF12,
-	"KeyF13":       KeyF13,
-	"KeyF14":       KeyF14,
-	"KeyF15":       KeyF15,
-	"KeyF16":       KeyF16,
-	"KeyF17":       KeyF17,
-	"KeyF18":       KeyF18,
-	"KeyF19":       KeyF19,
-	"KeyF20":       KeyF20,
-	"KeyF21":       KeyF21,
-	"KeyF22":       KeyF22,
-	"KeyF23":       KeyF23,
-	"KeyF24":       KeyF24,
-	"Enter":        KeyEnter,
-	"NumEnter":     KeyNumEnter,
-	"ControlLeft":  KeyLeftControl,
-	"ControlRight": KeyRightControl,
-	"ShiftLeft":    KeyLeftShift,
-	"ShiftRight":   KeyRightShift,
-	"AltLeft":      KeyLeftAlt,
-	"AltRight":     KeyRightAlt,
-	"ArrowLeft":    KeyLeft,
-	"ArrowRight":   KeyRight,
-	"ArrowUp":      KeyUp,
-	"ArrowDown":    KeyDown,
-	"Escape":       KeyEscape,
-	"Space":        KeySpace,
-	"Backspace":    KeyBackspace,
-	"Tab":          KeyTab,
-	"Home":         KeyHome,
-	"End":          KeyEnd,
-	"PageDown":     KeyPageDown,
-	"PageUp":       KeyPageUp,
-	"Delete":       KeyDelete,
-	"Insert":       KeyInsert,
-	"NumPlus":      KeyNumAdd,
-	"NumMinus":     KeyNumSubtract,
-	"NumMultiply":  KeyNumMultiply,
-	"NumDivide":    KeyNumDivide,
-	"CapsLock":     KeyCapslock,
-	// TODO KeyPrint
-	// TODO KeyPause
+	"KeyA":           KeyA,
+	"KeyB":           KeyB,
+	"KeyC":           KeyC,
+	"KeyD":           KeyD,
+	"KeyE":           KeyE,
+	"KeyF":           KeyF,
+	"KeyG":           KeyG,
+	"KeyH":           KeyH,
+	"KeyI":           KeyI,
+	"KeyJ":           KeyJ,
+	"KeyK":           KeyK,
+	"KeyL":           KeyL,
+	"KeyM":           KeyM,
+	"KeyN":           KeyN,
+	"KeyO":           KeyO,
+	"KeyP":           KeyP,
+	"KeyQ":           KeyQ,
+	"KeyR":           KeyR,
+	"KeyS":           KeyS,
+	"KeyT":           KeyT,
+	"KeyU":           KeyU,
+	"KeyV":           KeyV,
+	"KeyW":           KeyW,
+	"KeyX":           KeyX,
+	"KeyY":           KeyY,
+	"KeyZ":           KeyZ,
+	"Digit0":         Key0,
+	"Digit1":         Key1,
+	"Digit2":         Key2,
+	"Digit3":         Key3,
+	"Digit4":         Key4,
+	"Digit5":         Key5,
+	"Digit6":         Key6,
+	"Digit7":         Key7,
+	"Digit8":         Key8,
+	"Digit9":         Key9,
+	"Numpad0":        KeyNum0,
+	"Numpad1":        KeyNum1,
+	"Numpad2":        KeyNum2,
+	"Numpad3":        KeyNum3,
+	"Numpad4":        KeyNum4,
+	"Numpad5":        KeyNum5,
+	"Numpad6":        KeyNum6,
+	"Numpad7":        KeyNum7,
+	"Numpad8":        KeyNum8,
+	"Numpad9":        KeyNum9,
+	"KeyF1":          KeyF1,
+	"KeyF2":          KeyF2,
+	"KeyF3":          KeyF3,
+	"KeyF4":          KeyF4,
+	"KeyF5":          KeyF5,
+	"KeyF6":          KeyF6,
+	"KeyF7":          KeyF7,
+	"KeyF8":          KeyF8,
+	"KeyF9":          KeyF9,
+	"KeyF10":         KeyF10,
+	"KeyF11":         KeyF11,
+	"KeyF12":         KeyF12,
+	"KeyF13":         KeyF13,
+	"KeyF14":         KeyF14,
+	"KeyF15":         KeyF15,
+	"KeyF16":         KeyF16,
+	"KeyF17":         KeyF17,
+	"KeyF18":         KeyF18,
+	"KeyF19":         KeyF19,
+	"KeyF20":         KeyF20,
+	"KeyF21":         KeyF21,
+	"KeyF22":         KeyF22,
+	"KeyF23":         KeyF23,
+	"KeyF24":         KeyF24,
+	"Enter":          KeyEnter,
+	"NumpadEnter":    KeyNumEnter,
+	"ControlLeft":    KeyLeftControl,
+	"ControlRight":   KeyRightControl,
+	"ShiftLeft":      KeyLeftShift,
+	"ShiftRight":     KeyRightShift,
+	"AltLeft":        KeyLeftAlt,
+	"AltRight":       KeyRightAlt,
+	"ArrowLeft":      KeyLeft,
+	"ArrowRight":     KeyRight,
+	"ArrowUp":        KeyUp,
+	"ArrowDown":      KeyDown,
+	"Escape":         KeyEscape,
+	"Space":          KeySpace,
+	"Backspace":      KeyBackspace,
+	"Tab":            KeyTab,
+	"Home":           KeyHome,
+	"End":            KeyEnd,
+	"PageDown":       KeyPageDown,
+	"PageUp":         KeyPageUp,
+	"Delete":         KeyDelete,
+	"Insert":         KeyInsert,
+	"NumpadAdd":      KeyNumAdd,
+	"NumpadSubtract": KeyNumSubtract,
+	"NumpadMultiply": KeyNumMultiply,
+	"NumpadDivide":   KeyNumDivide,
+	"CapsLock":       KeyCapslock,
+	"Pause":          KeyPause,
+	"PrintScreen":    KeyPrint,
 }
 
-func toKey(code string) Key {
+func toKey(code, value string) Key {
+	// JavaScript's keydown event gives us a key code and a key value. The key
+	// code is key layout independent. The key value represents the character on
+	// the key. Take for example a German keyboard where - compared to a US
+	// keyboard - the Z and Y keys are swapped. Here the key code for the Key
+	// between T and U, which on the German keyboard is the Z, will be "KeyY"
+	// while the key value will be "z" or "Z", depending on whether shift is
+	// held at the time of the key press.
+	// To replicate the behavior on the desktop, we need to handle the German Z
+	// key as KeyZ, even though JS gives us code KeyY for it. We use a
+	// combination of key code and key value to differentiate these.
+	if strings.HasPrefix(code, "Key") {
+		k := strings.TrimPrefix(code, "Key")
+		if isUpperCaseLetter(k) {
+			// Key code is in [KeyA..KeyZ].
+			v := strings.ToUpper(value)
+			if isUpperCaseLetter(v) {
+				// Key value converted to upper-case is in [A..Z].
+				return KeyA + Key(v[0]-'A')
+			}
+		}
+	}
+
 	return keyMap[code] // Defaults to 0 which is good.
+}
+
+func isUpperCaseLetter(s string) bool {
+	return len(s) == 1 && 'A' <= s[0] && s[0] <= 'Z'
 }
 
 func (w *wasmWindow) Close() {
