@@ -134,8 +134,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	// Mouse wheel
 	win.bindEvent(canvas, "wheel", func(e js.Value) {
-		win.wheelX += e.Get("deltaX").Float()
-		win.wheelY += e.Get("deltaY").Float()
+		win.wheelX -= e.Get("deltaX").Float() / 100
+		win.wheelY -= e.Get("deltaY").Float() / 100
 		e.Call("preventDefault") // prevent page scroll
 	})
 

@@ -18,6 +18,7 @@ func main() {
 		wheelX        float64
 		wheelY        float64
 		cursorVisible = true
+		textScale     = float32(1.0)
 	)
 
 	draw.RunWindow("Everything", 800, 600, func(window draw.Window) {
@@ -69,6 +70,8 @@ func main() {
 
 		wheelX += window.MouseWheelX()
 		wheelY += window.MouseWheelY()
+
+		textScale += float32(window.MouseWheelY() / 10)
 
 		if window.WasKeyPressed(draw.KeyF) {
 			fullscreen = !fullscreen
@@ -132,9 +135,9 @@ func main() {
 		text += fmt.Sprintf("Mouse wheel: x %.2f, y %.2f\n", wheelX, wheelY)
 
 		text = strings.TrimSuffix(text, "\n")
-		textW, textH := window.GetScaledTextSize(text, 1.5)
+		textW, textH := window.GetScaledTextSize(text, textScale)
 		window.FillRect(5, 5, textW, textH, draw.DarkPurple)
-		window.DrawScaledText(text, 5, 5, 1.5, draw.White)
+		window.DrawScaledText(text, 5, 5, textScale, draw.White)
 
 	})
 }
