@@ -110,30 +110,36 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	// Mouse movement tracking
-	bindEvent(canvas, "mousemove", func(e js.Value) {
+	bindEvent(doc, "mousemove", func(e js.Value) {
 		bounds := canvas.Call("getBoundingClientRect")
 		win.mouseX = e.Get("clientX").Int() - bounds.Get("left").Int()
 		win.mouseY = e.Get("clientY").Int() - bounds.Get("top").Int()
 	})
 
-	// Mouse button down
-	bindEvent(canvas, "mousedown", func(e js.Value) {
+	// To determine whether the mouse buttons are currently up or down, we
+	// register the mouse down and up events on the document.
+	// To collect mouse clicks, we register the mouse down event on the canvas.
+	// Clicks outside the canvas are not reported.
+	bindEvent(doc, "mousedown", func(e js.Value) {
 		button := e.Get("button").Int()
 		if 0 <= button && button < int(mouseButtonCount) {
 			win.mouseDown[button] = true
+		}
+	})
+	bindEvent(doc, "mouseup", func(e js.Value) {
+		button := e.Get("button").Int()
+		if 0 <= button && button < int(mouseButtonCount) {
+			win.mouseDown[button] = false
+		}
+	})
+	bindEvent(canvas, "mousedown", func(e js.Value) {
+		button := e.Get("button").Int()
+		if 0 <= button && button < int(mouseButtonCount) {
 			win.clicks = append(win.clicks, MouseClick{
 				X:      win.mouseX,
 				Y:      win.mouseY,
 				Button: MouseButton(button),
 			})
-		}
-	})
-
-	// Mouse button up
-	bindEvent(canvas, "mouseup", func(e js.Value) {
-		button := e.Get("button").Int()
-		if 0 <= button && button < int(mouseButtonCount) {
-			win.mouseDown[button] = false
 		}
 	})
 
