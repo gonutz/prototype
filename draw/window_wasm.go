@@ -518,7 +518,7 @@ func abs(x int) int {
 // DrawRect outlines a rectangle using stroke style at the given position and size.
 func (w *wasmWindow) DrawRect(x, y, width, height int, c Color) {
 	w.setColor(c)
-	w.ctx.Call("strokeRect", x, y, width, height)
+	w.ctx.Call("strokeRect", float32(x)+0.5, float32(y)+0.5, width-1, height-1)
 }
 
 // FillRect renders a solid filled rectangle.
