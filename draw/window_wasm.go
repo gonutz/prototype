@@ -465,7 +465,8 @@ func (w *wasmWindow) MouseWheelY() float64 {
 
 // DrawPoint renders a single pixel (1x1 rectangle) at (x, y) using the specified color.
 func (w *wasmWindow) DrawPoint(x, y int, c Color) {
-	w.FillRect(x, y, 1, 1, c)
+	w.setColor(c)
+	w.ctx.Call("fillRect", x, y, 1, 1)
 }
 
 // DrawLine renders a straight line between (x1, y1) and (x2, y2) with the given color.
@@ -517,12 +518,22 @@ func abs(x int) int {
 
 // DrawRect outlines a rectangle using stroke style at the given position and size.
 func (w *wasmWindow) DrawRect(x, y, width, height int, c Color) {
-	w.setColor(c)
-	w.ctx.Call("strokeRect", float32(x)+0.5, float32(y)+0.5, width-1, height-1)
+	if height == 1 {
+		w.DrawLine(x, y, x+width, y, c)
+	} else if width == 1 {
+		w.DrawLine(x, y, x, y+height, c)
+	} else if width > 0 && height > 0 {
+		w.setColor(c)
+		w.ctx.Call("strokeRect", float32(x)+0.5, float32(y)+0.5, width-1, height-1)
+	}
 }
 
 // FillRect renders a solid filled rectangle.
 func (w *wasmWindow) FillRect(x, y, width, height int, c Color) {
+	if width <= 0 || height <= 0 {
+		return
+	}
+
 	w.setColor(c)
 	w.ctx.Call("fillRect", x, y, width, height)
 }
@@ -532,18 +543,16 @@ func (w *wasmWindow) DrawEllipse(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
 	}
+
+	outline := ellipseOutline(x, y, width, height)
+	if len(outline) == 0 {
+		return
+	}
+
 	w.setColor(color)
-	w.ctx.Call("beginPath")
-	w.ctx.Call("ellipse",
-		x+width/2,  // centerX
-		y+height/2, // centerY
-		width/2,    // radiusX
-		height/2,   // radiusY
-		0,          // rotation in radians
-		0,          // startAngle
-		2*math.Pi,  // endAngle
-	)
-	w.ctx.Call("stroke")
+	for _, p := range outline {
+		w.ctx.Call("fillRect", p.x, p.y, 1, 1)
+	}
 }
 
 // FillEllipse draws a filled ellipse within the bounding rectangle.
@@ -551,18 +560,18 @@ func (w *wasmWindow) FillEllipse(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
 	}
+
+	area := ellipseArea(x, y, width, height)
+	if len(area) == 0 {
+		return
+	}
+
 	w.setColor(color)
-	w.ctx.Call("beginPath")
-	w.ctx.Call("ellipse",
-		x+width/2,
-		y+height/2,
-		width/2,
-		height/2,
-		0,
-		0,
-		2*math.Pi,
-	)
-	w.ctx.Call("fill")
+	for len(area) > 1 {
+		start, end := area[0], area[1]
+		area = area[2:]
+		w.ctx.Call("fillRect", start.x, start.y, end.x-start.x+1, 1)
+	}
 }
 
 // ImageSize returns the native width and height of the image at the given path.
