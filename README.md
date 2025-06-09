@@ -1,16 +1,22 @@
 # prototype
 
-Simply prototype 2D games using an easy, minimal interface that lets you draw simple primitives and images on the screen, easily handle mouse and keyboard events, and play sounds.
+Simply prototype 2D games using an easy, minimal interface that lets you draw
+simple primitives and images on the screen, easily handle mouse and keyboard
+events, and play sounds.
 
 ![Games](https://github.com/gonutz/prototype/blob/master/samples/screenshots/games.png)
 
 ## Installation
 
-Install the [Go programming language](https://golang.org/dl/). After clicking the download link you will be referred to the installation instructions for your specific operating system.
+Install the [Go programming language](https://golang.org/dl/). After clicking
+the download link you will be referred to the installation instructions for your
+specific operating system.
 
-Install [Git](https://git-scm.com/downloads) and make it available in the PATH so the Go tool can use it.
+Install [Git](https://git-scm.com/downloads) and make it available in the PATH
+so the Go tool can use it.
 
-For Linux and macOS, you need a C compiler installed. On Windows this is not necessary.
+For Linux and macOS, you need a C compiler installed. On Windows this is not
+necessary.
 
 ### Supported Targets
 
@@ -42,44 +48,26 @@ The prototype framework supports multiple targets:
 
 #### WebAssembly (experimental)
 
-- Implemented via HTML5 Canvas and Web Audio using `syscall/js`
-- Requires Go 1.21+
-- Compile using:
-  ```sh
-  GOOS=js GOARCH=wasm go build -o main.wasm
-  ```
-- Use a simple HTML wrapper with a canvas and `wasm_exec.js` (from Go installation):
-  ```html
-  <canvas id="gameCanvas" width="800" height="600" style="touch-action:none;"></canvas>
-  <script src="wasm_exec.js"></script>
-  <script>
-    const go = new Go();
-    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
-      go.run(result.instance);
-    });
-  </script>
-  ```
+To build and run a WASM version of your game, you can use the `drawsm` tool.
+Install it with
 
-> [!NOTE]
-> The required `wasm_exec.js` file is included in the Go installation. You can find it in the `$(go env GOROOT)/misc/wasm` or `$(go env GOROOT)/lib/wasm` directory. Copy it to your project directory.
+	go install github.com/gonutz/prototype/cmd/drawsm@latest
 
-To serve locally:
+It allows you to run your game locally from within your project directory with
 
-```sh
-python3 -m http.server
-```
+	drawsm run
+
+or build it into the project directory with
+
+	drawsm build
 
 ## Installation (Library & Samples)
 
-Install the library and samples by running:
-
-```sh
-go get github.com/gonutz/prototype/...
-```
-
 ## Documentation
 
-For a description of all library functions, see [the GoDoc page](http://godoc.org/github.com/gonutz/prototype/draw). Most functionality is in the `Window` interface, and documented via code comments.
+For a description of all library functions, see [the package doc
+page](https://pkg.go.dev/github.com/gonutz/prototype/draw). Most functionality
+is in the `Window` interface, and documented via code comments.
 
 ## Example
 
