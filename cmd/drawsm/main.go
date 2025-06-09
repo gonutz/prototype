@@ -75,12 +75,10 @@ func check(err error) {
 func build(rebuildTemplate bool) error {
 	// Copy the Go installation's wasm_exec.js file which is needed to run the
 	// build output.
-	output, err := exec.Command("go", "env", "GOROOT").CombinedOutput()
+	wasmExecPath, err := locateWasmExecJs()
 	if err != nil {
-		return fmt.Errorf("failed to locate GOROOT: %w", err)
+		return err
 	}
-	goroot := strings.TrimSpace(string(output))
-	wasmExecPath := filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
 	err = copyFile(wasmExecPath, "wasm_exec.js")
 	if err != nil {
 		return fmt.Errorf("failed to copy wasm_exec.js: %w", err)
@@ -119,6 +117,25 @@ func build(rebuildTemplate bool) error {
 	}
 
 	return nil
+}
+
+func locateWasmExecJs() (string, error) {
+	output, err := exec.Command("go", "env", "GOROOT").CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to locate GOROOT: %w", err)
+	}
+	goroot := strings.TrimSpace(string(output))
+
+	wasmExecPath := filepath.Join(goroot, "misc", "wasm", "wasm_exec.js")
+	if !fileExists(wasmExecPath) {
+		wasmExecPath = filepath.Join(goroot, "lib", "wasm", "wasm_exec.js")
+	}
+	return wasmExecPath, nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func copyFile(from, to string) error {
@@ -169,12 +186,11 @@ func run() error {
 
 	// Read the Go installation's wasm_exec.js file which is needed to run the
 	// build output.
-	output, err := exec.Command("go", "env", "GOROOT").CombinedOutput()
+	wasmExecPath, err := locateWasmExecJs()
 	if err != nil {
-		return fmt.Errorf("failed to locate GOROOT: %w", err)
+		return err
 	}
-	goroot := strings.TrimSpace(string(output))
-	wasmExec, err := os.ReadFile(filepath.Join(goroot, "misc", "wasm", "wasm_exec.js"))
+	wasmExec, err := os.ReadFile(wasmExecPath)
 	if err != nil {
 		return fmt.Errorf("failed to read wasm_exec.js: %w", err)
 	}
