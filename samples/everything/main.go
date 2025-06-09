@@ -80,7 +80,6 @@ func main() {
 
 		if window.WasKeyPressed(draw.KeyC) {
 			cursorVisible = !cursorVisible
-			fmt.Println("cursor", cursorVisible)
 			window.ShowCursor(cursorVisible)
 		}
 
