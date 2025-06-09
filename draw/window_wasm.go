@@ -729,8 +729,8 @@ func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut i
 		}
 	}
 
-	lineHeight := int(fontSize * 1.2)
-	return maxWidth, lineHeight * len(lines)
+	lineHeight := fontSize * 1.2
+	return maxWidth, int(0.2*lineHeight + lineHeight*float64(len(lines)) + 0.5)
 }
 
 // DrawText renders a string at (x, y) using the given color and default scale (1.0).
@@ -741,12 +741,10 @@ func (w *wasmWindow) DrawText(text string, x, y int, color Color) {
 // DrawScaledText renders a string of text at the given position with a scaling factor and color.
 // Text is drawn using a monospace font, and supports multi-line input (lines split by '\n').
 func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color Color) {
-	// Ignore zero or negative scale
 	if scale <= 0 {
 		return
 	}
 
-	// Set fill color for the text
 	w.setColor(color)
 
 	// Compute font size based on scaling factor
@@ -759,11 +757,11 @@ func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color 
 	lines := strings.Split(text, "\n")
 
 	// Define line spacing as 1.2x font size
-	lineHeight := int(fontSize * 1.2) // line spacing
+	lineHeight := fontSize * 1.2
 
 	// Draw each line at its vertical offset
 	for i, line := range lines {
-		w.ctx.Call("fillText", line, x, y+i*lineHeight)
+		w.ctx.Call("fillText", line, x, fontSize+float64(y)+float64(i)*lineHeight)
 	}
 }
 
