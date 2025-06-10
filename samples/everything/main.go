@@ -13,7 +13,7 @@ func main() {
 		blurImages    bool
 		blurText      bool
 		characters    string
-		lastKey       draw.Key
+		lastKeys      []draw.Key
 		lastClick     draw.MouseClick
 		wheelX        float64
 		wheelY        float64
@@ -46,7 +46,10 @@ func main() {
 
 		for key := draw.KeyA; key <= draw.KeyPause; key++ {
 			if window.WasKeyPressed(key) {
-				lastKey = key
+				lastKeys = append(lastKeys, key)
+				if len(lastKeys) > 3 {
+					lastKeys = lastKeys[len(lastKeys)-3:]
+				}
 			}
 		}
 
@@ -173,11 +176,11 @@ func main() {
 		text += "S: Play Sound\n"
 		text += "Text written so far: " + characters + "\n"
 
-		if lastKey != 0 {
-			text += "Last typed key: " + lastKey.String() + "\n"
-		} else {
-			text += "Last typed key:\n"
+		lastKeyTexts := make([]string, len(lastKeys))
+		for i, k := range lastKeys {
+			lastKeyTexts[i] = k.String()
 		}
+		text += "Last typed key: " + strings.Join(lastKeyTexts, " ") + "\n"
 
 		text += "Pressed keys: " + keyDowns + "\n"
 		text += "Pressed mouse buttons: " + mouseDowns + "\n"
