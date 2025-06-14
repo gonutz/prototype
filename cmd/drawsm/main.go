@@ -23,10 +23,19 @@ Usage:
 
 The commands are:
 
+  run
+
+    Does not generate any files in the current directory. Instead it
+    builds main.wasm in a temporary folder and serves the template
+    index.html file locally on port 8080. Opens a web browser at the
+    local URL.
+
   build
 
     Generates index.html, wasm_exec.js and main.wasm in the current
-    project. Serve these files to generate the game website.
+    project. index.html is only generated if it does not yet exist.
+    This way you can edit your index.html to extend it beyond the
+    template.
 
   rebuild
 
@@ -34,15 +43,16 @@ The commands are:
 
   serve
 
-    Serve the files of a build or rebuild locally on port 8080. Opens
-    a web browser at the local URL.
+    Serves the files of a build locally on port 8080.
 
-  run
+  open
 
-    Does not generate any files in the current directory. Instead it
-    builds main.wasm in a temporary folder and serves the template
-    index.html file locally on port 8080. Opens a web browser at the
-    local URL.
+    Opens a web browser at the local URL.
+
+  show
+
+    Performs serve and open, i.e. serves the files of a build locally
+    on port 8080 and opens a web browser at the local URL.
 
   help
 
@@ -55,6 +65,10 @@ func main() {
 		check(build(args[0] == "rebuild"))
 	} else if len(args) == 1 && args[0] == "serve" {
 		check(serve())
+	} else if len(args) == 1 && args[0] == "open" {
+		check(open())
+	} else if len(args) == 1 && args[0] == "show" {
+		check(show())
 	} else if len(args) == 1 && args[0] == "run" {
 		check(run())
 	} else if len(args) == 0 || len(args) == 1 && args[0] == "help" {
@@ -148,6 +162,25 @@ func copyFile(from, to string) error {
 }
 
 func serve() error {
+	var httpErr error
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		httpErr = http.ListenAndServe(":8080", http.FileServer(http.Dir(".")))
+		if httpErr != nil {
+			stop <- nil
+		}
+	}()
+	<-stop
+	return httpErr
+}
+
+func open() error {
+	url := "http://localhost:8080"
+	return openURL(url)
+}
+
+func show() error {
 	var httpErr error
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

@@ -180,7 +180,7 @@ func main() {
 		for i, k := range lastKeys {
 			lastKeyTexts[i] = k.String()
 		}
-		text += "Last typed key: " + strings.Join(lastKeyTexts, " ") + "\n"
+		text += "Last typed keys: " + strings.Join(lastKeyTexts, " ") + "\n"
 
 		text += "Pressed keys: " + keyDowns + "\n"
 		text += "Pressed mouse buttons: " + mouseDowns + "\n"
