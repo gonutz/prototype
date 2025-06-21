@@ -5,32 +5,158 @@ package draw
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"strings"
-	"sync"
 	"syscall/js"
 )
 
 type wasmWindow struct {
-	update          UpdateFunction
-	canvas          js.Value
-	ctx             js.Value
-	width, height   int
-	running         bool
-	keyDown         [keyCount]bool
-	pressedKeys     []Key
-	typedChars      []rune
-	mouseX, mouseY  int
-	mouseDown       [mouseButtonCount]bool
-	wheelX          float64
-	wheelY          float64
-	clicks          []MouseClick
-	imageCache      map[string]js.Value
-	imagesLoaded    chan struct{}
-	pendingImages   map[string]bool
-	audioCtx        js.Value
-	audioBuffers    map[string]js.Value
-	closeImagesOnce sync.Once
+	canvas       js.Value
+	ctx          js.Value
+	width        int
+	height       int
+	running      bool
+	keyDown      [keyCount]bool
+	pressedKeys  []Key
+	typedChars   []rune
+	mouseX       int
+	mouseY       int
+	mouseDown    [mouseButtonCount]bool
+	wheelX       float64
+	wheelY       float64
+	clicks       []MouseClick
+	images       map[string]js.Value
+	audioCtx     js.Value
+	audioBuffers map[string]js.Value
+}
+
+func RunWindow(title string, width, height int, update UpdateFunction) error {
+	doc := js.Global().Get("document")
+	doc.Set("title", title)
+	canvas := doc.Call("getElementById", "gameCanvas")
+	if !canvas.Truthy() {
+		return js.Error{Value: js.ValueOf("canvas element not found")}
+	}
+	canvas.Set("width", width)
+	canvas.Set("height", height)
+
+	window := &wasmWindow{
+		running:      true,
+		width:        width,
+		height:       height,
+		canvas:       canvas,
+		ctx:          canvas.Call("getContext", "2d"),
+		audioCtx:     js.Global().Get("AudioContext").New(),
+		images:       map[string]js.Value{},
+		audioBuffers: map[string]js.Value{},
+	}
+
+	bindEvent(js.Global(), "keydown", func(e js.Value) {
+		// In the browser, we might need a user action to be allowed to start
+		// playing sounds, so we do this in the key and mouse button handlers.
+		window.startAudioPlayback()
+
+		keyCode := e.Get("code").String()
+		keyValue := e.Get("key").String()
+		key := toKey(keyCode, keyValue)
+
+		if key != 0 && !window.keyDown[key] {
+			window.pressedKeys = append(window.pressedKeys, key)
+		}
+		window.keyDown[key] = true
+
+		if window.keyDown[KeyLeftControl] || window.keyDown[KeyRightControl] ||
+			window.keyDown[KeyLeftAlt] || window.keyDown[KeyRightAlt] ||
+			preventKeyDownDefault[key] {
+			e.Call("preventDefault")
+		}
+	})
+
+	bindEvent(js.Global(), "keyup", func(e js.Value) {
+		keyCode := e.Get("code").String()
+		keyValue := e.Get("key").String()
+		key := toKey(keyCode, keyValue)
+		if key != 0 {
+			window.keyDown[key] = false
+		}
+	})
+
+	bindEvent(js.Global(), "keypress", func(e js.Value) {
+		keyStr := e.Get("key").String()
+		if len(keyStr) > 0 {
+			window.typedChars = append(window.typedChars, rune(keyStr[0]))
+		}
+	})
+
+	bindEvent(doc, "mousemove", func(e js.Value) {
+		bounds := canvas.Call("getBoundingClientRect")
+		window.mouseX = e.Get("clientX").Int() - bounds.Get("left").Int()
+		window.mouseY = e.Get("clientY").Int() - bounds.Get("top").Int()
+	})
+
+	// To determine whether the mouse buttons are currently up or down, we
+	// register the mouse down and up events on the *document*.
+	// To collect mouse clicks, we register the mouse down event on the
+	// *canvas*. Clicks outside the canvas are not reported.
+	bindEvent(doc, "mousedown", func(e js.Value) {
+		// In the browser, we might need a user action to be allowed to start
+		// playing sounds, so we do this in the key and mouse button handlers.
+		window.startAudioPlayback()
+
+		button := e.Get("button").Int()
+		if 0 <= button && button < int(mouseButtonCount) {
+			window.mouseDown[button] = true
+		}
+	})
+	bindEvent(doc, "mouseup", func(e js.Value) {
+		button := e.Get("button").Int()
+		if 0 <= button && button < int(mouseButtonCount) {
+			window.mouseDown[button] = false
+		}
+	})
+	bindEvent(canvas, "mousedown", func(e js.Value) {
+		button := e.Get("button").Int()
+		if 0 <= button && button < int(mouseButtonCount) {
+			window.clicks = append(window.clicks, MouseClick{
+				X:      window.mouseX,
+				Y:      window.mouseY,
+				Button: MouseButton(button),
+			})
+		}
+	})
+
+	bindEvent(canvas, "wheel", func(e js.Value) {
+		window.wheelX -= e.Get("deltaX").Float() / 100
+		window.wheelY -= e.Get("deltaY").Float() / 100
+		e.Call("preventDefault")
+	})
+
+	// Suppress right clicks triggering the context menu.
+	bindEvent(canvas, "contextmenu", func(e js.Value) {
+		e.Call("preventDefault")
+	})
+
+	// Main render loop using requestAnimationFrame.
+	var renderFrame js.Func
+	renderFrame = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		window.FillRect(0, 0, window.width, window.height, Black)
+		if window.running {
+			update(window)
+			// Reset input state between frames.
+			window.wheelX = 0
+			window.wheelY = 0
+			window.clicks = window.clicks[:0]
+			window.pressedKeys = window.pressedKeys[:0]
+			window.typedChars = window.typedChars[:0]
+		}
+		js.Global().Call("requestAnimationFrame", renderFrame)
+		return nil
+	})
+	js.Global().Call("requestAnimationFrame", renderFrame)
+
+	// WASM requires us to prevent main from exiting.
+	select {}
 }
 
 func bindEvent(target js.Value, event string, handler func(js.Value)) js.Func {
@@ -42,256 +168,63 @@ func bindEvent(target js.Value, event string, handler func(js.Value)) js.Func {
 	return jsFunc
 }
 
-// RunWindow initializes a WebAssembly window with an HTML canvas element, sets
-// up input and rendering, and starts the main update loop.
-func RunWindow(title string, width, height int, update UpdateFunction) error {
-	doc := js.Global().Get("document")
-	doc.Set("title", title)
-	canvas := doc.Call("getElementById", "gameCanvas")
-	if !canvas.Truthy() {
-		return js.Error{Value: js.ValueOf("canvas element not found")}
+func (w *wasmWindow) startAudioPlayback() {
+	if w.audioCtx.Get("state").String() == "suspended" {
+		w.audioCtx.Call("resume")
 	}
-	canvas.Set("width", width)
-	canvas.Set("height", height)
-
-	ctx := canvas.Call("getContext", "2d")
-
-	// Create the wasmWindow instance with input states, rendering context, and audio
-	win := &wasmWindow{
-		update:       update,
-		canvas:       canvas,
-		ctx:          ctx,
-		width:        width,
-		height:       height,
-		running:      true,
-		imageCache:   make(map[string]js.Value),
-		audioCtx:     js.Global().Get("AudioContext").New(),
-		audioBuffers: make(map[string]js.Value),
-	}
-
-	win.pendingImages = make(map[string]bool)
-	win.imagesLoaded = make(chan struct{})
-
-	// Handles key press events: resumes audio and tracks pressed keys.
-	bindEvent(js.Global(), "keydown", func(e js.Value) {
-		keyCode := e.Get("code").String()
-		keyValue := e.Get("key").String()
-		key := toKey(keyCode, keyValue)
-
-		if win.audioCtx.Get("state").String() == "suspended" {
-			win.audioCtx.Call("resume")
-		}
-
-		if key != 0 && !win.keyDown[key] {
-			win.pressedKeys = append(win.pressedKeys, key)
-		}
-		win.keyDown[key] = true
-
-		if win.keyDown[KeyLeftControl] || win.keyDown[KeyRightControl] ||
-			win.keyDown[KeyLeftAlt] || win.keyDown[KeyRightAlt] ||
-			preventKeyDownDefault[key] {
-			e.Call("preventDefault")
-		}
-	})
-
-	// Handles key release events
-	bindEvent(js.Global(), "keyup", func(e js.Value) {
-		keyCode := e.Get("code").String()
-		keyValue := e.Get("key").String()
-		key := toKey(keyCode, keyValue)
-		if key != 0 {
-			win.keyDown[key] = false
-		}
-	})
-
-	// Character input (text entry)
-	bindEvent(js.Global(), "keypress", func(e js.Value) {
-		keyStr := e.Get("key").String()
-		if len(keyStr) > 0 {
-			win.typedChars = append(win.typedChars, rune(keyStr[0]))
-		}
-	})
-
-	// Mouse movement tracking
-	bindEvent(doc, "mousemove", func(e js.Value) {
-		bounds := canvas.Call("getBoundingClientRect")
-		win.mouseX = e.Get("clientX").Int() - bounds.Get("left").Int()
-		win.mouseY = e.Get("clientY").Int() - bounds.Get("top").Int()
-	})
-
-	// To determine whether the mouse buttons are currently up or down, we
-	// register the mouse down and up events on the document.
-	// To collect mouse clicks, we register the mouse down event on the canvas.
-	// Clicks outside the canvas are not reported.
-	bindEvent(doc, "mousedown", func(e js.Value) {
-		button := e.Get("button").Int()
-		if 0 <= button && button < int(mouseButtonCount) {
-			win.mouseDown[button] = true
-		}
-	})
-	bindEvent(doc, "mouseup", func(e js.Value) {
-		button := e.Get("button").Int()
-		if 0 <= button && button < int(mouseButtonCount) {
-			win.mouseDown[button] = false
-		}
-	})
-	bindEvent(canvas, "mousedown", func(e js.Value) {
-		button := e.Get("button").Int()
-		if 0 <= button && button < int(mouseButtonCount) {
-			win.clicks = append(win.clicks, MouseClick{
-				X:      win.mouseX,
-				Y:      win.mouseY,
-				Button: MouseButton(button),
-			})
-		}
-	})
-
-	// Mouse wheel
-	bindEvent(canvas, "wheel", func(e js.Value) {
-		win.wheelX -= e.Get("deltaX").Float() / 100
-		win.wheelY -= e.Get("deltaY").Float() / 100
-		e.Call("preventDefault") // prevent page scroll
-	})
-
-	// Suppress right clicks triggering the context menu.
-	bindEvent(canvas, "contextmenu", func(e js.Value) {
-		e.Call("preventDefault")
-	})
-
-	// Main render loop using requestAnimationFrame
-	var renderFrame js.Func
-	renderFrame = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		win.FillRect(0, 0, win.width, win.height, Black)
-		if win.running {
-			win.update(win)
-			// Reset input state between frames.
-			win.wheelX = 0
-			win.wheelY = 0
-			win.clicks = win.clicks[:0]
-			win.pressedKeys = win.pressedKeys[:0]
-			win.typedChars = win.typedChars[:0]
-		}
-		js.Global().Call("requestAnimationFrame", renderFrame)
-		return nil
-	})
-	js.Global().Call("requestAnimationFrame", renderFrame)
-
-	// Prevent Go main from exiting (WASM requires this to keep running)
-	select {}
 }
 
-// setColor sets both fill and stroke styles on the canvas context
-// based on the provided RGBA color. Each color component is converted
-// to its 0–255 representation for use with CSS-style RGBA strings.
 func (w *wasmWindow) setColor(c Color) {
 	r := int(c.R * 255)
 	g := int(c.G * 255)
 	b := int(c.B * 255)
 	a := c.A
-	w.ctx.Set("fillStyle", fmt.Sprintf("rgba(%d,%d,%d,%f)", r, g, b, a))
-	w.ctx.Set("strokeStyle", fmt.Sprintf("rgba(%d,%d,%d,%f)", r, g, b, a))
+	// We use CSS-style RGBA strings.
+	col := fmt.Sprintf("rgba(%d,%d,%d,%f)", r, g, b, a)
+	w.ctx.Set("fillStyle", col)
+	w.ctx.Set("strokeStyle", col)
 }
 
-// loadImage loads an image from the given path and returns the corresponding
-// JavaScript image element. The result is cached to avoid redundant network requests.
-//
-// The function sets up onload and onerror callbacks to resolve a Go channel
-// once the image is successfully loaded or has failed to load.
 func (w *wasmWindow) loadImage(path string) (js.Value, error) {
-	if img, ok := w.imageCache[path]; ok && img.Truthy() {
+	if img, ok := w.images[path]; ok && img.Truthy() {
 		return img, nil
 	}
 
-	if _, loading := w.pendingImages[path]; loading {
-		return js.Null(), fmt.Errorf("image still loading: %s", path)
-	}
-
-	w.pendingImages[path] = true
-
 	img := js.Global().Get("Image").New()
 
-	var onLoadFunc, onErrorFunc js.Func
-
-	cleanup := func() {
-		delete(w.pendingImages, path)
-		if len(w.pendingImages) == 0 {
-			w.closeImagesOnce.Do(func() { close(w.imagesLoaded) })
+	if OpenFile != nil {
+		url, err := loadBlob(path)
+		if err != nil {
+			return js.Null(), err
 		}
+		img.Set("src", url)
+	} else {
+		img.Set("src", path)
 	}
 
-	// Allocate and bind onload handler
-	onLoadFunc = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		onLoadFunc.Release()
-		onErrorFunc.Release()
-
-		w.imageCache[path] = img
-		cleanup()
-		return nil
-	})
-
-	// Allocate and bind onerror handler
-	onErrorFunc = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		onLoadFunc.Release()
-		onErrorFunc.Release()
-
-		cleanup()
-		return nil
-	})
-
-	img.Set("onload", onLoadFunc)
-	img.Set("onerror", onErrorFunc)
-	img.Set("src", path)
-
-	return js.Null(), fmt.Errorf("image still loading: %s", path)
-
+	w.images[path] = img
+	return img, nil
 }
 
-// loadSoundFile fetches and decodes an audio file from the given path using the Web Audio API.
-// It returns a decoded AudioBuffer that can be played via PlaySoundFile.
-//
-// The result is cached in audioBuffers to avoid redundant decoding on repeated calls.
-// This function blocks using a channel until the asynchronous JS fetch and decode are complete.
-func (w *wasmWindow) loadSoundFile(path string) (js.Value, error) {
-	// Return cached buffer if already loaded
-	if buffer, ok := w.audioBuffers[path]; ok {
-		return buffer, nil
+func loadBlob(path string) (js.Value, error) {
+	f, err := OpenFile(path)
+	if err != nil {
+		return js.Null(), err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return js.Null(), err
 	}
 
-	done := make(chan struct{})
-	var result js.Value
-	var err error
+	array := js.Global().Get("Uint8Array").New(len(data))
+	js.CopyBytesToJS(array, data)
 
-	fetchPromise := js.Global().Call("fetch", path)
-	then := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		resp := args[0]
-		resp.Call("arrayBuffer").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-			arrayBuffer := args[0]
+	blob := js.Global().Get("Blob").New([]interface{}{array})
+	url := js.Global().Get("URL").Call("createObjectURL", blob)
 
-			// Decode the ArrayBuffer into an AudioBuffer using decodeAudioData
-			w.audioCtx.Call("decodeAudioData", arrayBuffer,
-				// Success callback
-				js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-					result = args[0]
-					w.audioBuffers[path] = result
-					close(done)
-					return nil
-				}),
-				// Error callback
-				js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-					err = fmt.Errorf("failed to decode audio: %s", path)
-					close(done)
-					return nil
-				}),
-			)
-			return nil
-		}))
-		return nil
-	})
-
-	fetchPromise.Call("then", then)
-	<-done
-
-	return result, err
+	return url, nil
 }
 
 var keyMap = map[string]Key{
@@ -397,52 +330,6 @@ var keyMap = map[string]Key{
 }
 
 var preventKeyDownDefault = map[Key]bool{
-	KeyA:            false,
-	KeyB:            false,
-	KeyC:            false,
-	KeyD:            false,
-	KeyE:            false,
-	KeyF:            false,
-	KeyG:            false,
-	KeyH:            false,
-	KeyI:            false,
-	KeyJ:            false,
-	KeyK:            false,
-	KeyL:            false,
-	KeyM:            false,
-	KeyN:            false,
-	KeyO:            false,
-	KeyP:            false,
-	KeyQ:            false,
-	KeyR:            false,
-	KeyS:            false,
-	KeyT:            false,
-	KeyU:            false,
-	KeyV:            false,
-	KeyW:            false,
-	KeyX:            false,
-	KeyY:            false,
-	KeyZ:            false,
-	Key0:            false,
-	Key1:            false,
-	Key2:            false,
-	Key3:            false,
-	Key4:            false,
-	Key5:            false,
-	Key6:            false,
-	Key7:            false,
-	Key8:            false,
-	Key9:            false,
-	KeyNum0:         false,
-	KeyNum1:         false,
-	KeyNum2:         false,
-	KeyNum3:         false,
-	KeyNum4:         false,
-	KeyNum5:         false,
-	KeyNum6:         false,
-	KeyNum7:         false,
-	KeyNum8:         false,
-	KeyNum9:         false,
 	KeyF1:           true,
 	KeyF2:           true,
 	KeyF3:           true,
@@ -467,32 +354,16 @@ var preventKeyDownDefault = map[Key]bool{
 	KeyF22:          true,
 	KeyF23:          true,
 	KeyF24:          true,
-	KeyEnter:        false,
-	KeyNumEnter:     false,
 	KeyLeftControl:  true,
 	KeyRightControl: true,
 	KeyLeftShift:    true,
 	KeyRightShift:   true,
 	KeyLeftAlt:      true,
 	KeyRightAlt:     true,
-	KeyLeft:         false,
-	KeyRight:        false,
-	KeyUp:           false,
-	KeyDown:         false,
-	KeyEscape:       false,
-	KeySpace:        false,
-	KeyBackspace:    false,
-	KeyTab:          false,
 	KeyHome:         true,
 	KeyEnd:          true,
 	KeyPageDown:     true,
 	KeyPageUp:       true,
-	KeyDelete:       false,
-	KeyInsert:       false,
-	KeyNumAdd:       false,
-	KeyNumSubtract:  false,
-	KeyNumMultiply:  false,
-	KeyNumDivide:    false,
 	KeyCapslock:     true,
 	KeyPrint:        true,
 	KeyPause:        true,
@@ -530,7 +401,7 @@ func isUpperCaseLetter(s string) bool {
 
 func (w *wasmWindow) Close() {
 	w.running = false
-	// TODO Stop all sounds.
+	w.audioCtx.Call("close")
 }
 
 func (w *wasmWindow) Size() (int, int) {
@@ -556,8 +427,6 @@ func (w *wasmWindow) ShowCursor(show bool) {
 	}
 }
 
-// WasKeyPressed returns true if the given key was pressed during this frame.
-// Use this for single-trigger events (e.g., jumping, opening menus).
 func (w *wasmWindow) WasKeyPressed(key Key) bool {
 	for _, k := range w.pressedKeys {
 		if k == key {
@@ -567,52 +436,39 @@ func (w *wasmWindow) WasKeyPressed(key Key) bool {
 	return false
 }
 
-// IsKeyDown returns true if the given key is currently held down.
-// Use this for continuous input (e.g., holding movement keys).
 func (w *wasmWindow) IsKeyDown(key Key) bool {
 	return w.keyDown[key]
 }
 
-// Characters returns a string of characters typed by the user during this frame.
-// Useful for text input fields or typing games.
 func (w *wasmWindow) Characters() string {
 	return string(w.typedChars)
 }
 
-// IsMouseDown returns true if the specified mouse button is currently pressed.
 func (w *wasmWindow) IsMouseDown(button MouseButton) bool {
 	return w.mouseDown[button]
 }
 
-// Clicks returns a slice of all mouse clicks registered during this frame.
-// Each MouseClick contains the position and button.
-// The slice is cleared after each update.
 func (w *wasmWindow) Clicks() []MouseClick {
 	return w.clicks
 }
 
-// MousePosition returns the current mouse cursor position relative to the canvas.
 func (w *wasmWindow) MousePosition() (int, int) {
 	return w.mouseX, w.mouseY
 }
 
-// MouseWheelX returns the accumulated horizontal scroll value for the current frame.
 func (w *wasmWindow) MouseWheelX() float64 {
 	return w.wheelX
 }
 
-// MouseWheelY returns the accumulated vertical scroll value for the current frame.
 func (w *wasmWindow) MouseWheelY() float64 {
 	return w.wheelY
 }
 
-// DrawPoint renders a single pixel (1x1 rectangle) at (x, y) using the specified color.
 func (w *wasmWindow) DrawPoint(x, y int, c Color) {
 	w.setColor(c)
 	w.ctx.Call("fillRect", x, y, 1, 1)
 }
 
-// DrawLine renders a straight line between (x1, y1) and (x2, y2) with the given color.
 func (w *wasmWindow) DrawLine(x1, y1, x2, y2 int, c Color) {
 	w.setColor(c)
 
@@ -659,7 +515,6 @@ func abs(x int) int {
 	return x
 }
 
-// DrawRect outlines a rectangle using stroke style at the given position and size.
 func (w *wasmWindow) DrawRect(x, y, width, height int, c Color) {
 	if height == 1 {
 		w.DrawLine(x, y, x+width, y, c)
@@ -671,7 +526,6 @@ func (w *wasmWindow) DrawRect(x, y, width, height int, c Color) {
 	}
 }
 
-// FillRect renders a solid filled rectangle.
 func (w *wasmWindow) FillRect(x, y, width, height int, c Color) {
 	if width <= 0 || height <= 0 {
 		return
@@ -681,7 +535,6 @@ func (w *wasmWindow) FillRect(x, y, width, height int, c Color) {
 	w.ctx.Call("fillRect", x, y, width, height)
 }
 
-// DrawEllipse draws an outlined ellipse within the bounding rectangle at (x, y, width, height).
 func (w *wasmWindow) DrawEllipse(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
@@ -698,7 +551,6 @@ func (w *wasmWindow) DrawEllipse(x, y, width, height int, color Color) {
 	}
 }
 
-// FillEllipse draws a filled ellipse within the bounding rectangle.
 func (w *wasmWindow) FillEllipse(x, y, width, height int, color Color) {
 	if width <= 0 || height <= 0 {
 		return
@@ -717,8 +569,6 @@ func (w *wasmWindow) FillEllipse(x, y, width, height int, color Color) {
 	}
 }
 
-// ImageSize returns the native width and height of the image at the given path.
-// The image is loaded (or retrieved from cache) if needed.
 func (w *wasmWindow) ImageSize(path string) (int, int, error) {
 	img, err := w.loadImage(path)
 	if err != nil {
@@ -727,43 +577,35 @@ func (w *wasmWindow) ImageSize(path string) (int, int, error) {
 	return img.Get("width").Int(), img.Get("height").Int(), nil
 }
 
-// DrawImageFile draws an image at the given position.
-// If the image is not loaded yet, nothing is drawn.
 func (w *wasmWindow) DrawImageFile(path string, x, y int) error {
 	img, err := w.loadImage(path)
-	if err != nil || !img.Truthy() {
-		return nil
+	if err != nil {
+		return err
 	}
 	w.ctx.Call("drawImage", img, x, y)
 	return nil
 }
 
-// DrawImageFileTo draws an image scaled to a new size and rotated (in degrees) around its center.
 func (w *wasmWindow) DrawImageFileTo(path string, x, y, w2, h2, rot int) error {
 	img, err := w.loadImage(path)
 	if err != nil {
 		return err
 	}
 
-	// Save current context
 	w.ctx.Call("save")
 
-	// Translate to center of target rect
 	w.ctx.Call("translate", x+w2/2, y+h2/2)
 	w.ctx.Call("rotate", float64(rot)*math.Pi/180)
 
-	// Draw centered image
 	w.ctx.Call("drawImage", img,
-		0, 0, img.Get("width").Int(), img.Get("height").Int(), // source
-		-w2/2, -h2/2, w2, h2, // destination (centered)
+		0, 0, img.Get("width").Int(), img.Get("height").Int(),
+		-w2/2, -h2/2, w2, h2,
 	)
 
-	// Restore context
 	w.ctx.Call("restore")
 	return nil
 }
 
-// DrawImageFileRotated draws the image at (x, y), rotated by `rot` degrees about its center.
 func (w *wasmWindow) DrawImageFileRotated(path string, x, y, rot int) error {
 	img, err := w.loadImage(path)
 	if err != nil {
@@ -781,8 +623,6 @@ func (w *wasmWindow) DrawImageFileRotated(path string, x, y, rot int) error {
 	return nil
 }
 
-// DrawImageFilePart draws a subsection of the image, defined by source rect (sx, sy, sw, sh),
-// to a destination rect (dx, dy, dw, dh) and applies rotation (degrees) around its center.
 func (w *wasmWindow) DrawImageFilePart(path string,
 	sx, sy, sw, sh, dx, dy, dw, dh, rot int,
 ) error {
@@ -796,8 +636,8 @@ func (w *wasmWindow) DrawImageFilePart(path string,
 	w.ctx.Call("rotate", float64(rot)*math.Pi/180)
 	w.ctx.Call("drawImage",
 		img,
-		sx, sy, sw, sh, // source rect
-		-dw/2, -dh/2, dw, dh, // destination rect, centered
+		sx, sy, sw, sh,
+		-dw/2, -dh/2, dw, dh,
 	)
 	w.ctx.Call("restore")
 	return nil
@@ -811,13 +651,10 @@ func (w *wasmWindow) BlurText(blur bool) {
 	// TODO Figure out how we want to draw and blur text.
 }
 
-// GetTextSize returns the width and height (in pixels) required to render the given text at default scale.
 func (w *wasmWindow) GetTextSize(text string) (int, int) {
 	return w.GetScaledTextSize(text, 1.0)
 }
 
-// GetScaledTextSize returns the pixel dimensions required to render text at the given scale.
-// Line breaks are taken into account.
 func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut int) {
 	if scale <= 0 {
 		return 0, 0
@@ -839,13 +676,10 @@ func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut i
 	return maxWidth, int(0.2*lineHeight + lineHeight*float64(len(lines)) + 0.5)
 }
 
-// DrawText renders a string at (x, y) using the given color and default scale (1.0).
 func (w *wasmWindow) DrawText(text string, x, y int, color Color) {
 	w.DrawScaledText(text, x, y, 1.0, color)
 }
 
-// DrawScaledText renders a string of text at the given position with a scaling factor and color.
-// Text is drawn using a monospace font, and supports multi-line input (lines split by '\n').
 func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color Color) {
 	if scale <= 0 {
 		return
@@ -853,50 +687,61 @@ func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color 
 
 	w.setColor(color)
 
-	// Compute font size based on scaling factor
-	fontSize := 16.0 * float64(scale) // base size of 16, feel free to tweak
+	// TODO For now we use base size 16, might need tweaking.
+	fontSize := 16.0 * float64(scale)
 
-	// Apply font style to canvas context (monospace font for uniform spacing)
 	w.ctx.Set("font", fmt.Sprintf("%.2fpx monospace", fontSize))
 
-	// Split the input into lines
 	lines := strings.Split(text, "\n")
 
-	// Define line spacing as 1.2x font size
+	// Define line spacing as 1.2 times the font size.
 	lineHeight := fontSize * 1.2
 
-	// Draw each line at its vertical offset
+	w.ctx.Set("imageSmoothingEnabled", false)
 	for i, line := range lines {
 		w.ctx.Call("fillText", line, x, fontSize+float64(y)+float64(i)*lineHeight)
 	}
 }
 
-// PlaySoundFile plays an audio file by path using the Web Audio API.
-// It ensures the AudioContext is resumed before playback, as required by browser policies.
 func (w *wasmWindow) PlaySoundFile(path string) error {
-	// Do not wait on resume or fetch — just try it
-	if w.audioCtx.Get("state").String() == "suspended" {
-		w.audioCtx.Call("resume")
-	}
+	// Sounds might not have been started yet.
+	w.startAudioPlayback()
 
-	// Already loaded? Play immediately
 	if buffer, ok := w.audioBuffers[path]; ok {
 		return w.playBuffer(buffer)
 	}
 
-	// Begin async load
-	w.asyncLoadSound(path, func(buffer js.Value, err error) {
-		if err == nil {
-			w.playBuffer(buffer)
+	if OpenFile != nil {
+		url, err := loadBlob(path)
+		if err != nil {
+			return err
 		}
-	})
+		w.loadAndPlaySound(path, url)
+	} else {
+		w.loadAndPlaySound(path, path)
+	}
 
 	return nil
 }
 
-// Non-blocking async sound load using JS promises
-func (w *wasmWindow) asyncLoadSound(path string, callback func(js.Value, error)) {
-	fetchPromise := js.Global().Call("fetch", path)
+func (w *wasmWindow) playBuffer(buffer js.Value) error {
+	source := w.audioCtx.Call("createBufferSource")
+	source.Set("buffer", buffer)
+	source.Call("connect", w.audioCtx.Get("destination"))
+	source.Call("start")
+	return nil
+}
+
+func (w *wasmWindow) loadAndPlaySound(path string, url interface{}) {
+	w.asyncLoadSound(path, url, func(buffer js.Value, err error) {
+		if err == nil {
+			w.playBuffer(buffer)
+		}
+	})
+}
+
+func (w *wasmWindow) asyncLoadSound(path string, url interface{}, callback func(js.Value, error)) {
+	fetchPromise := js.Global().Call("fetch", url)
 	fetchPromise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		resp := args[0]
 		resp.Call("arrayBuffer").Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
@@ -917,13 +762,4 @@ func (w *wasmWindow) asyncLoadSound(path string, callback func(js.Value, error))
 		}))
 		return nil
 	}))
-}
-
-// Small helper to play a buffer
-func (w *wasmWindow) playBuffer(buffer js.Value) error {
-	source := w.audioCtx.Call("createBufferSource")
-	source.Set("buffer", buffer)
-	source.Call("connect", w.audioCtx.Get("destination"))
-	source.Call("start")
-	return nil
 }

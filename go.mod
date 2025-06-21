@@ -1,6 +1,6 @@
 module github.com/gonutz/prototype
 
-go 1.11
+go 1.16
 
 require (
 	github.com/gonutz/d3d9 v1.2.1

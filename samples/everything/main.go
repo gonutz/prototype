@@ -1,13 +1,28 @@
 package main
 
 import (
+	"embed"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/gonutz/prototype/draw"
 )
 
+//go:embed rsc/*
+var rsc embed.FS
+
+// Toggle loadFromEmbed to load from disk/URL (false) or from the embedded file
+// system (true)
+const loadFromEmbed = true
+
 func main() {
+	if loadFromEmbed {
+		draw.OpenFile = func(path string) (io.ReadCloser, error) {
+			return rsc.Open(path)
+		}
+	}
+
 	var (
 		fullscreen    bool
 		blurImages    bool
@@ -75,6 +90,9 @@ func main() {
 		wheelY += window.MouseWheelY()
 
 		textScale += float32(window.MouseWheelY() / 10)
+		if textScale < 0.1 {
+			textScale = 0.1
+		}
 
 		if window.WasKeyPressed(draw.KeyF) {
 			fullscreen = !fullscreen
@@ -87,7 +105,11 @@ func main() {
 		}
 
 		if window.WasKeyPressed(draw.KeyS) {
-			window.PlaySoundFile("sound.wav")
+			window.PlaySoundFile("rsc/sound.wav")
+		}
+
+		if window.WasKeyPressed(draw.KeyM) {
+			window.PlaySoundFile("rsc/music.ogg")
 		}
 
 		mx, my := window.MousePosition()
@@ -158,12 +180,12 @@ func main() {
 		window.DrawLine(210, 445, 212, 447, draw.LightBlue)
 		window.DrawLine(210, 450, 211, 451, draw.LightGreen)
 
-		imgW, imgH, _ := window.ImageSize("meds.png")
+		imgW, imgH, _ := window.ImageSize("rsc/meds.png")
 		window.FillRect(9, 519, imgW+2, imgH+2, draw.DarkYellow)
-		window.DrawImageFile("meds.png", 10, 520)
-		window.DrawImageFilePart("meds.png", 32, 0, 16, 15, 100, 520, 3*16, 3*15, 45)
-		window.DrawImageFileRotated("meds.png", 200, 520, -20)
-		window.DrawImageFileTo("meds.png", 300, 520, 128, 64, 5)
+		window.DrawImageFile("rsc/meds.png", 10, 520)
+		window.DrawImageFilePart("rsc/meds.png", 32, 0, 16, 15, 100, 520, 3*16, 3*15, 45)
+		window.DrawImageFileRotated("rsc/meds.png", 200, 520, -20)
+		window.DrawImageFileTo("rsc/meds.png", 300, 520, 128, 64, 5)
 
 		windowW, windowH := window.Size()
 
@@ -174,6 +196,7 @@ func main() {
 		text += "I: Blur Images (" + boolToString(blurImages) + ")\n"
 		text += "T: Blur Text (" + boolToString(blurText) + ")\n"
 		text += "S: Play Sound\n"
+		text += "M: Play Music\n"
 		text += "Text written so far: " + characters + "\n"
 
 		lastKeyTexts := make([]string, len(lastKeys))
