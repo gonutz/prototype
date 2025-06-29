@@ -26,7 +26,6 @@ func main() {
 	var (
 		fullscreen    bool
 		blurImages    bool
-		blurText      bool
 		characters    string
 		lastKeys      []draw.Key
 		lastClick     draw.MouseClick
@@ -46,11 +45,6 @@ func main() {
 			blurImages = !blurImages
 		}
 		window.BlurImages(blurImages)
-
-		if window.WasKeyPressed(draw.KeyT) {
-			blurText = !blurText
-		}
-		window.BlurText(blurText)
 
 		characters += window.Characters()
 
@@ -194,7 +188,6 @@ func main() {
 		text += "C: Show/Hide Cursor (" + boolToString(cursorVisible) + ")\n"
 		text += "F: Fullscreen (" + boolToString(fullscreen) + ")\n"
 		text += "I: Blur Images (" + boolToString(blurImages) + ")\n"
-		text += "T: Blur Text (" + boolToString(blurText) + ")\n"
 		text += "S: Play Sound\n"
 		text += "M: Play Music\n"
 		text += "Text written so far: " + characters + "\n"

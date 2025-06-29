@@ -35,17 +35,6 @@ The prototype framework supports multiple targets:
   sudo apt install libx11-dev libxrandr-dev libgl1-mesa-dev libxcursor-dev libxinerama-dev libxi-dev
   ```
 
-#### Linux (SDL2 backend)
-
-- Install SDL2 libraries:
-  ```sh
-  sudo apt install libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev
-  ```
-- Use build tag:
-  ```sh
-  go run -tags sdl2 main.go
-  ```
-
 #### WebAssembly (experimental)
 
 To build and run a WASM version of your game, you can use the `drawsm` tool.

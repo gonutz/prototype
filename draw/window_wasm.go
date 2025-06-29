@@ -9,7 +9,12 @@ import (
 	"math"
 	"strings"
 	"syscall/js"
+
+	_ "embed"
 )
+
+//go:embed Go-Mono.ttf
+var fontData []byte
 
 type wasmWindow struct {
 	canvas       js.Value
@@ -29,6 +34,7 @@ type wasmWindow struct {
 	images       map[string]js.Value
 	audioCtx     js.Value
 	audioBuffers map[string]js.Value
+	fontURL      js.Value
 }
 
 func RunWindow(title string, width, height int, update UpdateFunction) error {
@@ -136,6 +142,15 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	bindEvent(canvas, "contextmenu", func(e js.Value) {
 		e.Call("preventDefault")
 	})
+
+	fontArray := js.Global().Get("Uint8Array").New(len(fontData))
+	js.CopyBytesToJS(fontArray, fontData)
+	fontBlob := js.Global().Get("Blob").New(js.ValueOf([]interface{}{fontArray}))
+	window.fontURL = js.Global().Get("URL").Call("createObjectURL", fontBlob)
+	style := js.Global().Get("document").Call("createElement", "style")
+	style.Set("textContent", "@font-face { font-family: '_draw_font_'; src: url('"+window.fontURL.String()+"'); }")
+	js.Global().Get("document").Get("head").Call("appendChild", style)
+	js.Global().Get("document").Get("fonts").Call("load", "1em _draw_font_")
 
 	// Main render loop using requestAnimationFrame.
 	var renderFrame js.Func
@@ -647,21 +662,23 @@ func (w *wasmWindow) BlurImages(blur bool) {
 	w.ctx.Set("imageSmoothingEnabled", blur)
 }
 
-func (w *wasmWindow) BlurText(blur bool) {
-	// TODO Figure out how we want to draw and blur text.
-}
-
 func (w *wasmWindow) GetTextSize(text string) (int, int) {
 	return w.GetScaledTextSize(text, 1.0)
 }
+
+const (
+	wasmFontBaseScale = 13.5
+	fontLineGapScale  = 1.195
+)
 
 func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut int) {
 	if scale <= 0 {
 		return 0, 0
 	}
 
-	fontSize := 16.0 * float64(scale)
-	w.ctx.Set("font", fmt.Sprintf("%.2fpx monospace", fontSize))
+	fontSize := wasmFontBaseScale * float64(scale)
+	w.ctx.Set("font", fmt.Sprintf("%.2fpx _draw_font_", fontSize))
+
 	lines := strings.Split(text, "\n")
 	maxWidth := 0
 
@@ -672,8 +689,8 @@ func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut i
 		}
 	}
 
-	lineHeight := fontSize * 1.2
-	return maxWidth, int(0.2*lineHeight + lineHeight*float64(len(lines)) + 0.5)
+	lineHeight := fontSize * fontLineGapScale
+	return maxWidth, int(lineHeight*float64(len(lines)) + 0.5)
 }
 
 func (w *wasmWindow) DrawText(text string, x, y int, color Color) {
@@ -687,17 +704,12 @@ func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color 
 
 	w.setColor(color)
 
-	// TODO For now we use base size 16, might need tweaking.
-	fontSize := 16.0 * float64(scale)
+	fontSize := wasmFontBaseScale * float64(scale)
+	w.ctx.Set("font", fmt.Sprintf("%.2fpx _draw_font_", fontSize))
 
-	w.ctx.Set("font", fmt.Sprintf("%.2fpx monospace", fontSize))
+	lineHeight := fontSize * fontLineGapScale
 
 	lines := strings.Split(text, "\n")
-
-	// Define line spacing as 1.2 times the font size.
-	lineHeight := fontSize * 1.2
-
-	w.ctx.Set("imageSmoothingEnabled", false)
 	for i, line := range lines {
 		w.ctx.Call("fillText", line, x, fontSize+float64(y)+float64(i)*lineHeight)
 	}

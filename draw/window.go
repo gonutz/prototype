@@ -161,10 +161,6 @@ type Window interface {
 	// when scaling images.
 	BlurImages(blur bool)
 
-	// BlurText determines whether DrawScaledText uses anti-aliasing (blur =
-	// true) or nearest-neighbor sampling (blur = false).
-	BlurText(blur bool)
-
 	// GetTextSize returns the size the given text would have when being drawn.
 	GetTextSize(text string) (w, h int)
 

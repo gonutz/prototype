@@ -1,6 +1,3 @@
-//go:build !sdl2
-// +build !sdl2
-
 package draw
 
 import "os/exec"
