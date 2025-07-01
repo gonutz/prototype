@@ -183,7 +183,7 @@ func (w *window) ShowCursor(show bool) {
 }
 
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
-	if action == glfw.Press || action == glfw.Repeat {
+	if action == glfw.Press {
 		w.pressed = append(w.pressed, tokey(key))
 	}
 }

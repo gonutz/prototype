@@ -415,8 +415,9 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 		}
 		key, down := rawInputToKey(raw.GetKeyboard())
 		if key != 0 {
+			wasDown := globalWindow.keyDown[key]
 			globalWindow.keyDown[key] = down
-			if down {
+			if down && !wasDown {
 				globalWindow.pressed = append(globalWindow.pressed, key)
 				if key == KeyF4 && globalWindow.IsKeyDown(KeyLeftAlt) {
 					globalWindow.Close()
