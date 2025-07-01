@@ -218,6 +218,7 @@ func main() {
 		window.FillRect(5, 5, textW, textH, draw.DarkPurple)
 		window.DrawScaledText(text, 5, 5, textScale, draw.White)
 
+		window.FillRect(500, 500, 500, 500, draw.Green)
 	})
 }
 

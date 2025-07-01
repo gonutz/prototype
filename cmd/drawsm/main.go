@@ -335,10 +335,10 @@ var indexHTML = []byte(`<html>
 		<canvas id="gameCanvas" width="800" height="600"></canvas>
 		<script src="wasm_exec.js"></script>
 		<script>
-		  const go = new Go();
-		  WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
-			go.run(result.instance);
-		  });
+			const go = new Go();
+			WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+				go.run(result.instance);
+			});
 		</script>
 	</body>
 </html>

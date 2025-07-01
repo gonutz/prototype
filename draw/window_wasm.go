@@ -114,6 +114,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		if 0 <= button && button < int(mouseButtonCount) {
 			window.mouseDown[button] = true
 		}
+
+		e.Call("preventDefault")
 	})
 	bindEvent(doc, "mouseup", func(e js.Value) {
 		button := e.Get("button").Int()
@@ -143,6 +145,21 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		e.Call("preventDefault")
 	})
 
+	bindEvent(doc, "fullscreenchange", func(e js.Value) {
+		if doc.Get("fullscreenElement").Truthy() {
+			win := js.Global().Get("window")
+			canvas.Set("width", win.Get("innerWidth"))
+			canvas.Set("height", win.Get("innerHeight"))
+			canvas.Get("style").Set("width", "100vw")
+			canvas.Get("style").Set("height", "100vh")
+		} else {
+			canvas.Set("width", width)
+			canvas.Set("height", height)
+			canvas.Get("style").Set("width", fmt.Sprintf("%dpx", width))
+			canvas.Get("style").Set("height", fmt.Sprintf("%dpx", height))
+		}
+	})
+
 	fontArray := js.Global().Get("Uint8Array").New(len(fontData))
 	js.CopyBytesToJS(fontArray, fontData)
 	fontBlob := js.Global().Get("Blob").New(js.ValueOf([]interface{}{fontArray}))
@@ -155,7 +172,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// Main render loop using requestAnimationFrame.
 	var renderFrame js.Func
 	renderFrame = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
-		window.FillRect(0, 0, window.width, window.height, Black)
+		window.FillRect(0, 0, 99999, 99999, Black)
 		if window.running {
 			update(window)
 			// Reset input state between frames.
@@ -420,17 +437,14 @@ func (w *wasmWindow) Close() {
 }
 
 func (w *wasmWindow) Size() (int, int) {
-	return w.width, w.height
+	return w.canvas.Get("width").Int(), w.canvas.Get("height").Int()
 }
 
-func (w *wasmWindow) SetFullscreen(f bool) {
-	if f {
+func (w *wasmWindow) SetFullscreen(fullscreen bool) {
+	if fullscreen {
 		w.canvas.Call("requestFullscreen")
 	} else {
-		doc := js.Global().Get("document")
-		if doc.Call("exitFullscreen").Truthy() {
-			doc.Call("exitFullscreen")
-		}
+		js.Global().Get("document").Call("exitFullscreen")
 	}
 }
 
