@@ -494,6 +494,10 @@ func (w *window) SetFullscreen(f bool) {
 	w.isFullscreen = f
 }
 
+func (w *window) IsFullscreen() bool {
+	return w.isFullscreen
+}
+
 func (w *window) ShowCursor(show bool) {
 	hide := !show
 	if hide == w.cursorHidden {

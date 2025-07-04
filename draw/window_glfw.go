@@ -164,6 +164,10 @@ func (w *window) SetFullscreen(f bool) {
 	}
 }
 
+func (w *window) IsFullscreen() bool {
+	return w.fullscreen
+}
+
 func monitorContaining(winX, winY int) *glfw.Monitor {
 	for _, m := range glfw.GetMonitors() {
 		x, y, w, h := m.GetWorkarea()

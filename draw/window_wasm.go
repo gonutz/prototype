@@ -17,24 +17,27 @@ import (
 var fontData []byte
 
 type wasmWindow struct {
-	canvas       js.Value
-	ctx          js.Value
-	width        int
-	height       int
-	running      bool
-	keyDown      [keyCount]bool
-	pressedKeys  []Key
-	typedChars   []rune
-	mouseX       int
-	mouseY       int
-	mouseDown    [mouseButtonCount]bool
-	wheelX       float64
-	wheelY       float64
-	clicks       []MouseClick
-	images       map[string]js.Value
-	audioCtx     js.Value
-	audioBuffers map[string]js.Value
-	fontURL      js.Value
+	canvas           js.Value
+	ctx              js.Value
+	width            int
+	height           int
+	running          bool
+	keyDown          [keyCount]bool
+	pressedKeys      []Key
+	typedChars       []rune
+	mouseX           int
+	mouseY           int
+	mouseDown        [mouseButtonCount]bool
+	wheelX           float64
+	wheelY           float64
+	clicks           []MouseClick
+	images           map[string]js.Value
+	audioCtx         js.Value
+	audioBuffers     map[string]js.Value
+	fontURL          js.Value
+	wantFullscreen   bool
+	isFullscreen     bool
+	hasSeenUserInput bool
 }
 
 func RunWindow(title string, width, height int, update UpdateFunction) error {
@@ -59,9 +62,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 
 	bindEvent(js.Global(), "keydown", func(e js.Value) {
-		// In the browser, we might need a user action to be allowed to start
-		// playing sounds, so we do this in the key and mouse button handlers.
-		window.startAudioPlayback()
+		window.onUserInteraction()
 
 		keyCode := e.Get("code").String()
 		keyValue := e.Get("key").String()
@@ -89,6 +90,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	bindEvent(js.Global(), "keypress", func(e js.Value) {
+		window.onUserInteraction()
+
 		keyStr := e.Get("key").String()
 		if len(keyStr) > 0 {
 			window.typedChars = append(window.typedChars, rune(keyStr[0]))
@@ -106,9 +109,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// To collect mouse clicks, we register the mouse down event on the
 	// *canvas*. Clicks outside the canvas are not reported.
 	bindEvent(doc, "mousedown", func(e js.Value) {
-		// In the browser, we might need a user action to be allowed to start
-		// playing sounds, so we do this in the key and mouse button handlers.
-		window.startAudioPlayback()
+		window.onUserInteraction()
 
 		button := e.Get("button").Int()
 		if 0 <= button && button < int(mouseButtonCount) {
@@ -146,7 +147,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	bindEvent(doc, "fullscreenchange", func(e js.Value) {
-		if doc.Get("fullscreenElement").Truthy() {
+		window.isFullscreen = doc.Get("fullscreenElement").Truthy()
+		window.wantFullscreen = window.isFullscreen
+		if window.isFullscreen {
 			win := js.Global().Get("window")
 			canvas.Set("width", win.Get("innerWidth"))
 			canvas.Set("height", win.Get("innerHeight"))
@@ -440,11 +443,34 @@ func (w *wasmWindow) Size() (int, int) {
 	return w.canvas.Get("width").Int(), w.canvas.Get("height").Int()
 }
 
+func (w *wasmWindow) onUserInteraction() {
+	// In the browser, we need a user action to be allowed to go fullscreen
+	// and play sounds so we do this in the key and mouse button handlers.
+	if !w.hasSeenUserInput {
+		w.hasSeenUserInput = true
+		w.updateFullscreen()
+		w.startAudioPlayback()
+	}
+}
+
+func (w *wasmWindow) IsFullscreen() bool {
+	return w.isFullscreen
+}
+
 func (w *wasmWindow) SetFullscreen(fullscreen bool) {
-	if fullscreen {
-		w.canvas.Call("requestFullscreen")
-	} else {
-		js.Global().Get("document").Call("exitFullscreen")
+	w.wantFullscreen = fullscreen
+	if w.hasSeenUserInput {
+		w.updateFullscreen()
+	}
+}
+
+func (w *wasmWindow) updateFullscreen() {
+	if w.isFullscreen != w.wantFullscreen {
+		if w.wantFullscreen {
+			w.canvas.Call("requestFullscreen")
+		} else {
+			js.Global().Get("document").Call("exitFullscreen")
+		}
 	}
 }
 

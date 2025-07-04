@@ -41,6 +41,12 @@ type Window interface {
 	// By default the window is not fullscreen. It always starts windowed.
 	SetFullscreen(f bool)
 
+	// IsFullscreen returns true if the window is currently in fullscreen mode.
+	// This might be different from the last state set with SetFullscreen, e.g.
+	// in the browser, the user has ways to disable fullscreen without going
+	// through SetFullscreen.
+	IsFullscreen() bool
+
 	// ShowCursor set the OS' mouse cursor to visible or invisible. It defaults
 	// to visible if you do not call ShowCursor.
 	ShowCursor(show bool)
