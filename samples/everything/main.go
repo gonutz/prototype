@@ -33,6 +33,7 @@ func main() {
 		wheelY        float64
 		cursorVisible = true
 		textScale     = float32(1.0)
+		firstFrame    = true
 	)
 
 	draw.RunWindow("Everything", 800, 600, func(window draw.Window) {
@@ -102,8 +103,9 @@ func main() {
 			window.PlaySoundFile("rsc/sound.wav")
 		}
 
-		if window.WasKeyPressed(draw.KeyM) {
-			window.PlaySoundFile("rsc/music.ogg")
+		if firstFrame {
+			window.PlaySoundFile("rsc/music.wav")
+			firstFrame = false
 		}
 
 		mx, my := window.MousePosition()
