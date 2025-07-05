@@ -498,6 +498,9 @@ func isUpperCaseLetter(s string) bool {
 func (w *wasmWindow) Close() {
 	w.running = false
 	w.canvas.Get("style").Set("cursor", "default")
+	if w.isFullscreen {
+		js.Global().Get("document").Call("exitFullscreen")
+	}
 	w.audioCtx.Call("close")
 }
 
