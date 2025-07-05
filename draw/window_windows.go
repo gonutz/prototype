@@ -426,7 +426,10 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 		}
 		return 0
 	case w32.WM_CHAR:
-		globalWindow.text += string(utf16.Decode([]uint16{uint16(w)})[0])
+		r := utf16.Decode([]uint16{uint16(w)})[0]
+		if r >= ' ' {
+			globalWindow.text += string(r)
+		}
 		return 0
 	case w32.WM_MOUSEMOVE:
 		globalWindow.mouse.x = int(int16(w32.LOWORD(uint32(l))))

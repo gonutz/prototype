@@ -25,7 +25,7 @@ type wasmWindow struct {
 	running          bool
 	keyDown          [keyCount]bool
 	pressedKeys      []Key
-	typedChars       []rune
+	typed            string
 	mouseX           int
 	mouseY           int
 	mouseDown        [mouseButtonCount]bool
@@ -111,9 +111,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 		window.onUserInteraction()
 
-		keyStr := e.Get("key").String()
-		if len(keyStr) > 0 {
-			window.typedChars = append(window.typedChars, rune(keyStr[0]))
+		key := e.Get("key").String()
+		if key != "Enter" && len(key) > 0 {
+			window.typed += key
 		}
 	})
 
@@ -230,7 +230,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			window.wheelY = 0
 			window.clicks = window.clicks[:0]
 			window.pressedKeys = window.pressedKeys[:0]
-			window.typedChars = window.typedChars[:0]
+			window.typed = ""
 			js.Global().Call("requestAnimationFrame", renderFrame)
 		}
 		return nil
@@ -456,6 +456,7 @@ var preventKeyDownDefault = map[Key]bool{
 	KeyRightShift:   true,
 	KeyLeftAlt:      true,
 	KeyRightAlt:     true,
+	KeyTab:          true,
 	KeyHome:         true,
 	KeyEnd:          true,
 	KeyPageDown:     true,
@@ -563,7 +564,7 @@ func (w *wasmWindow) IsKeyDown(key Key) bool {
 }
 
 func (w *wasmWindow) Characters() string {
-	return string(w.typedChars)
+	return w.typed
 }
 
 func (w *wasmWindow) IsMouseDown(button MouseButton) bool {

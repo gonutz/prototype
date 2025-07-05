@@ -119,9 +119,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			gl.Clear(gl.COLOR_BUFFER_BIT)
 			update(w)
 
-			w.pressed = w.pressed[0:0]
-			w.typed = w.typed[0:0]
-			w.clicks = w.clicks[0:0]
+			w.pressed = w.pressed[:0]
+			w.typed = w.typed[:0]
+			w.clicks = w.clicks[:0]
 			w.wheelX = 0
 			w.wheelY = 0
 
