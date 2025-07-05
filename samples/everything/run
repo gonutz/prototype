@@ -1,0 +1,3 @@
+#!/bin/bash
+go run . || exit 1
+drawsm run || exit 1

@@ -7,16 +7,14 @@ package draw
 
 import (
 	"io"
-	"os"
 	"strconv"
 )
 
 // OpenFile allows you to re-direct from the file system to your own data
-// storage for image and sound files. It defaults to os.Open but you can
-// overwrite it with any function that fits the signature.
-var OpenFile = func(path string) (io.ReadCloser, error) {
-	return os.Open(path)
-}
+// storage for image and sound files. It defaults to os.Open on desktop and to
+// fetching URLs for WASM. You can overwrite it with any function that fits the
+// signature, e.g. to open files from an embed.FS.
+var OpenFile func(path string) (io.ReadCloser, error) = DefaultOpenFile
 
 // UpdateFunction is used as a callback when creating a window. It is called
 // at 60Hz and you do all your event handling and drawing in it.
@@ -42,6 +40,12 @@ type Window interface {
 	// Use Window.Size to get the new size after this.
 	// By default the window is not fullscreen. It always starts windowed.
 	SetFullscreen(f bool)
+
+	// IsFullscreen returns true if the window is currently in fullscreen mode.
+	// This might be different from the last state set with SetFullscreen, e.g.
+	// in the browser, the user has ways to disable fullscreen without going
+	// through SetFullscreen.
+	IsFullscreen() bool
 
 	// ShowCursor set the OS' mouse cursor to visible or invisible. It defaults
 	// to visible if you do not call ShowCursor.
@@ -162,10 +166,6 @@ type Window interface {
 	// anti-aliasing. Setting blur to false will use nearest-neighbor sampling
 	// when scaling images.
 	BlurImages(blur bool)
-
-	// BlurText determines whether DrawScaledText uses anti-aliasing (blur =
-	// true) or nearest-neighbor sampling (blur = false).
-	BlurText(blur bool)
 
 	// GetTextSize returns the size the given text would have when being drawn.
 	GetTextSize(text string) (w, h int)

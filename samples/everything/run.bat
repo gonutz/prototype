@@ -1,0 +1,2 @@
+@go run .
+@drawsm run

@@ -1,41 +1,66 @@
-prototype
-=========
+# prototype
 
-Simply prototype 2D games using an easy, minimal interface that lets you draw simple primitives and images on the screen, easily handle mouse and keyboard events and play sounds.
+Simply prototype 2D games using an easy, minimal interface that lets you draw
+simple primitives and images on the screen, easily handle mouse and keyboard
+events, and play sounds.
 
 ![Games](https://github.com/gonutz/prototype/blob/master/samples/screenshots/games.png)
 
-Installation
-------------
+## Installation
 
-Install the [Go programming language](https://golang.org/dl/). After clicking the download link you will be referred to the installation instructions for your specific operating system.
+Install the [Go programming language](https://golang.org/dl/). After clicking
+the download link you will be referred to the installation instructions for your
+specific operating system.
 
-Install [Git](https://git-scm.com/downloads) and make it available in the PATH so the go tool can use it.
+Install [Git](https://git-scm.com/downloads) and make it available in the PATH
+so the Go tool can use it.
 
-For Linux and OS X you need a C compiler installed. On Windows this is not necessary.
+For Linux and macOS, you need a C compiler installed. On Windows this is not
+necessary.
 
-On Linux there are two backends available, GLFW and SDL2. For GLFW you need these libraries installed (tested on Linux Mint, other distros might be slightly different):
+### Supported Targets
 
-`libx11-dev libxrandr-dev libgl1-mesa-dev libxcursor-dev libxinerama-dev libxi-dev`
+The prototype framework supports multiple targets:
 
-GLFW is used by default. To use SDL2 you need to add `-tags sdl2` to your Go builds, e.g. `go run -tags sdl2 main.go`. Also you need the SDL2 libraries installed:
+#### Windows (default)
 
-`libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev`
+- Uses Direct3D 9
+- No additional dependencies needed
 
+#### Linux/macOS (GLFW backend)
 
-Install the library and samples by running the following on your command line:
+- Uses OpenGL via GLFW
+- Install required packages (example for Ubuntu/Debian):
+  ```sh
+  sudo apt install libx11-dev libxrandr-dev libgl1-mesa-dev libxcursor-dev libxinerama-dev libxi-dev
+  ```
 
-	go get github.com/gonutz/prototype/...
+#### WebAssembly (experimental)
 
-Documentation
--------------
+To build and run a WASM version of your game, you can use the `drawsm` tool.
+Install it with
 
-For a description of all library functions, see [the godoc page](http://godoc.org/github.com/gonutz/prototype/draw) for this project. Note that most of the functionality is in the Window interface and hence the descriptions are listed as code comments in the source for that type.
+	go install github.com/gonutz/prototype/cmd/drawsm@latest
 
-Example
--------
+It allows you to run your game locally from within your project directory with
 
-```Go
+	drawsm run
+
+or build it into the project directory with
+
+	drawsm build
+
+## Installation (Library & Samples)
+
+## Documentation
+
+For a description of all library functions, see [the package doc
+page](https://pkg.go.dev/github.com/gonutz/prototype/draw). Most functionality
+is in the `Window` interface, and documented via code comments.
+
+## Example
+
+```go
 package main
 
 import (
@@ -49,11 +74,9 @@ func main() {
 }
 
 func update(window draw.Window) {
-	// find the screen center
 	w, h := window.Size()
 	centerX, centerY := w/2, h/2
 
-	// draw a button in the center of the screen
 	mouseX, mouseY := window.MousePosition()
 	mouseInCircle := math.Hypot(float64(mouseX-centerX), float64(mouseY-centerY)) < 20
 	color := draw.DarkRed
@@ -66,16 +89,13 @@ func update(window draw.Window) {
 		window.DrawScaledText("Close!", centerX-40, centerY+25, 1.6, draw.Green)
 	}
 
-	// check all mouse clicks that happened during this frame
 	for _, click := range window.Clicks() {
 		dx, dy := click.X-centerX, click.Y-centerY
-		squareDist := dx*dx + dy*dy
-		if squareDist <= 20*20 {
-			// close the window and end the application
+		if dx*dx+dy*dy <= 20*20 {
 			window.Close()
 		}
 	}
 }
 ```
-	
-This example displays a window with a round button in the middle to close it. It demonstrates some basic drawing and event handling code.
+
+This example displays a window with a round button in the middle to close it. It demonstrates basic drawing and event handling.

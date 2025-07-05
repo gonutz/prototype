@@ -1,5 +1,6 @@
-//go:build glfw || (!windows && !sdl2)
-// +build glfw !windows,!sdl2
+//go:build (glfw || !windows) && !js
+// +build glfw !windows
+// +build !js
 
 package draw
 
@@ -25,6 +26,8 @@ func init() {
 	runtime.LockOSThread()
 }
 
+var fontCharW, fontCharH int
+
 type window struct {
 	running        bool
 	pressed        []Key
@@ -39,7 +42,6 @@ type window struct {
 	mouseX, mouseY int
 	wheelX, wheelY float64
 	blurImages     bool
-	blurText       bool
 }
 
 // RunWindow creates a new window and calls update 60 times per second.
@@ -135,7 +137,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	return nil
 }
 
-const fontTextureID = "///font_texture"
+const fontTextureID = "///font"
 
 func (w *window) Close() {
 	w.running = false
@@ -162,6 +164,10 @@ func (w *window) SetFullscreen(f bool) {
 	}
 }
 
+func (w *window) IsFullscreen() bool {
+	return w.fullscreen
+}
+
 func monitorContaining(winX, winY int) *glfw.Monitor {
 	for _, m := range glfw.GetMonitors() {
 		x, y, w, h := m.GetWorkarea()
@@ -181,7 +187,7 @@ func (w *window) ShowCursor(show bool) {
 }
 
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
-	if action == glfw.Press || action == glfw.Repeat {
+	if action == glfw.Press {
 		w.pressed = append(w.pressed, tokey(key))
 	}
 }
@@ -254,15 +260,16 @@ func (w *window) DrawRect(x, y, width, height int, color Color) {
 	gl.End()
 }
 
-func (w *window) DrawLine(x, y, x2, y2 int, color Color) {
-	if x == x2 && y == y2 {
-		w.DrawPoint(x, y, color)
+func (w *window) DrawLine(fromX, fromY, toX, toY int, color Color) {
+	if fromX == toX && fromY == toY {
+		w.DrawPoint(fromX, fromY, color)
 		return
 	}
+
 	gl.Begin(gl.LINES)
 	gl.Color4f(color.R, color.G, color.B, color.A)
-	gl.Vertex2f(float32(x)+0.5, float32(y)+0.5)
-	gl.Vertex2f(float32(x2+sign(x2-x))+0.5, float32(y2+sign(y2-y))+0.5)
+	gl.Vertex2f(float32(fromX)+0.5, float32(fromY)+0.5)
+	gl.Vertex2f(float32(toX), float32(toY))
 	gl.End()
 }
 
@@ -287,15 +294,15 @@ func (w *window) loadTexture(r io.Reader, name string) (texture, error) {
 		return texture{}, err
 	}
 
-	var rgba *image.RGBA
-	if asRGBA, ok := img.(*image.RGBA); ok {
-		rgba = asRGBA
+	var nrgba *image.NRGBA
+	if asNRGBA, ok := img.(*image.NRGBA); ok {
+		nrgba = asNRGBA
 	} else {
-		rgba = image.NewRGBA(img.Bounds())
-		if rgba.Stride != rgba.Rect.Size().X*4 {
+		nrgba = image.NewNRGBA(img.Bounds())
+		if nrgba.Stride != nrgba.Rect.Size().X*4 {
 			return texture{}, errors.New("unsupported stride")
 		}
-		draw.Draw(rgba, rgba.Bounds(), img, image.Point{0, 0}, draw.Src)
+		draw.Draw(nrgba, nrgba.Bounds(), img, image.Point{0, 0}, draw.Src)
 	}
 
 	var tex uint32
@@ -310,19 +317,44 @@ func (w *window) loadTexture(r io.Reader, name string) (texture, error) {
 		gl.TEXTURE_2D,
 		0,
 		gl.RGBA,
-		int32(rgba.Bounds().Dx()),
-		int32(rgba.Bounds().Dy()),
+		int32(nrgba.Bounds().Dx()),
+		int32(nrgba.Bounds().Dy()),
 		0,
 		gl.RGBA,
 		gl.UNSIGNED_BYTE,
-		gl.Ptr(rgba.Pix),
+		gl.Ptr(nrgba.Pix),
 	)
+
+	gl.GenerateMipmap(gl.TEXTURE_2D)
+
+	if name == fontTextureID {
+		fontCharW = img.Bounds().Dx() / 16
+		fontCharH = img.Bounds().Dy() / 16
+
+		// Generate mipmaps that are brighter for the font.
+		mipmap := nrgba
+		for i := 0; i < 4; i++ {
+			mipmap = nextFontTextureMipMap(mipmap)
+			gl.TexImage2D(
+				gl.TEXTURE_2D,
+				int32(i+1),
+				gl.RGBA,
+				int32(mipmap.Bounds().Dx()),
+				int32(mipmap.Bounds().Dy()),
+				0,
+				gl.RGBA,
+				gl.UNSIGNED_BYTE,
+				gl.Ptr(mipmap.Pix),
+			)
+		}
+	}
+
 	gl.Disable(gl.TEXTURE_2D)
 
 	w.textures[name] = texture{
 		id: tex,
-		w:  rgba.Bounds().Dx(),
-		h:  rgba.Bounds().Dy(),
+		w:  nrgba.Bounds().Dx(),
+		h:  nrgba.Bounds().Dy(),
 	}
 
 	return w.textures[name], nil
@@ -506,7 +538,7 @@ func (w *window) DrawImageFileTo(path string, x, y, width, height, degrees int) 
 	gl.BindTexture(gl.TEXTURE_2D, tex.id)
 
 	if w.blurImages {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	} else {
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
@@ -574,7 +606,7 @@ func (w *window) DrawImageFilePart(
 	gl.BindTexture(gl.TEXTURE_2D, tex.id)
 
 	if w.blurImages {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	} else {
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
@@ -611,21 +643,12 @@ func (w *window) BlurImages(blur bool) {
 	w.blurImages = blur
 }
 
-func (w *window) BlurText(blur bool) {
-	w.blurText = blur
-}
-
 func (w *window) GetTextSize(text string) (width, height int) {
 	return w.GetScaledTextSize(text, 1.0)
 }
 
 func (w *window) GetScaledTextSize(text string, scale float32) (width, height int) {
-	fontTexture, ok := w.textures[fontTextureID]
-	if !ok {
-		return 0, 0
-	}
-	width = int(float32(fontTexture.w/16)*scale + 0.5)
-	height = int(float32(fontTexture.h/16)*scale + 0.5)
+	scale *= fontBaseScale
 	lines := strings.Split(text, "\n")
 	maxLineW := 0
 	for _, line := range lines {
@@ -634,64 +657,71 @@ func (w *window) GetScaledTextSize(text string, scale float32) (width, height in
 			maxLineW = w
 		}
 	}
-	return width * maxLineW, height * len(lines)
+
+	charW := fontCharW - 2*fontGlyphMargin
+	charH := fontCharH - 2*fontGlyphMargin
+	width = int(float32(charW*maxLineW)*scale*fontKerningFactor + 0.5)
+	height = int(float32(charH*len(lines))*scale + 0.5)
+	return width, height
 }
 
 func (w *window) DrawText(text string, x, y int, color Color) {
-	w.DrawScaledText(text, x, y, 1.0, color)
+	w.DrawScaledText(text, x, y, 1, color)
 }
 
 func (w *window) DrawScaledText(text string, x, y int, scale float32, color Color) {
-	fontTexture, ok := w.textures[fontTextureID]
-	if !ok {
+	if len(text) == 0 || scale <= 0 {
 		return
 	}
 
-	width, height := int32(fontTexture.w/16), int32(fontTexture.h/16)
-	width = int32(float32(width)*scale + 0.5)
-	height = int32(float32(height)*scale + 0.5)
+	scale *= fontBaseScale
 
-	var srcX, srcY float32
-	destX, destY := int32(x), int32(y)
+	fontTextureW := 16 * fontCharW
+	fontTextureH := 16 * fontCharH
+	uOffset := float32(fontGlyphMargin) / float32(fontTextureW)
+	vOffset := float32(fontGlyphMargin) / float32(fontTextureH)
+	uStep := float32(fontCharW) / float32(fontTextureW)
+	vStep := float32(fontCharH) / float32(fontTextureH)
+	uSize := float32(fontCharW-2*fontGlyphMargin) / float32(fontTextureW)
+	vSize := float32(fontCharH-2*fontGlyphMargin) / float32(fontTextureH)
 
+	width := float32(fontCharW-2*fontGlyphMargin) * scale * fontKerningFactor
+	height := float32(fontCharH-2*fontGlyphMargin) * scale
+	destX, destY := float32(x), float32(y)
+
+	fontTexture, _ := w.textures[fontTextureID]
 	gl.Enable(gl.TEXTURE_2D)
 	gl.BindTexture(gl.TEXTURE_2D, fontTexture.id)
-
-	if w.blurText {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-	} else {
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-	}
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
 	gl.Begin(gl.QUADS)
 	for _, r := range text {
 		if r == '\n' {
-			destX = int32(x)
+			destX = float32(x)
 			destY += height
 			continue
 		}
-		r = runeToFont(r)
 
-		srcX = float32(r%16) / 16
-		srcY = float32(r/16) / 16
-
-		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX, srcY)
-		gl.Vertex2i(destX, destY)
+		index := runeToFont(r)
+		u := uOffset + float32(index%16)*uStep
+		v := vOffset + float32(index/16)*vStep
 
 		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX+1.0/16, srcY)
-		gl.Vertex2i(destX+width, destY)
+		gl.TexCoord2f(u, v)
+		gl.Vertex2f(destX, destY)
 
 		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX+1.0/16, srcY+1.0/16)
-		gl.Vertex2i(destX+width, destY+height)
+		gl.TexCoord2f(u+uSize, v)
+		gl.Vertex2f(destX+width, destY)
 
 		gl.Color4f(color.R, color.G, color.B, color.A)
-		gl.TexCoord2f(srcX, srcY+1.0/16)
-		gl.Vertex2i(destX, destY+height)
+		gl.TexCoord2f(u+uSize, v+vSize)
+		gl.Vertex2f(destX+width, destY+height)
+
+		gl.Color4f(color.R, color.G, color.B, color.A)
+		gl.TexCoord2f(u, v+vSize)
+		gl.Vertex2f(destX, destY+height)
 
 		destX += width
 	}
