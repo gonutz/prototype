@@ -9,6 +9,7 @@ import (
 	"math"
 	"strings"
 	"syscall/js"
+	"time"
 
 	_ "embed"
 )
@@ -38,6 +39,12 @@ type wasmWindow struct {
 	wantFullscreen   bool
 	isFullscreen     bool
 	hasSeenUserInput bool
+	soundsToPlay     []futureSound
+}
+
+type futureSound struct {
+	source    js.Value
+	startedAt time.Time
 }
 
 func RunWindow(title string, width, height int, update UpdateFunction) error {
@@ -62,6 +69,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	}
 
 	bindEvent(js.Global(), "keydown", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		window.onUserInteraction()
 
 		keyCode := e.Get("code").String()
@@ -81,6 +92,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	bindEvent(js.Global(), "keyup", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		keyCode := e.Get("code").String()
 		keyValue := e.Get("key").String()
 		key := toKey(keyCode, keyValue)
@@ -90,6 +105,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	bindEvent(js.Global(), "keypress", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		window.onUserInteraction()
 
 		keyStr := e.Get("key").String()
@@ -99,6 +118,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	bindEvent(doc, "mousemove", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		bounds := canvas.Call("getBoundingClientRect")
 		window.mouseX = e.Get("clientX").Int() - bounds.Get("left").Int()
 		window.mouseY = e.Get("clientY").Int() - bounds.Get("top").Int()
@@ -109,6 +132,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	// To collect mouse clicks, we register the mouse down event on the
 	// *canvas*. Clicks outside the canvas are not reported.
 	bindEvent(doc, "mousedown", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		window.onUserInteraction()
 
 		button := e.Get("button").Int()
@@ -119,12 +146,20 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		e.Call("preventDefault")
 	})
 	bindEvent(doc, "mouseup", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		button := e.Get("button").Int()
 		if 0 <= button && button < int(mouseButtonCount) {
 			window.mouseDown[button] = false
 		}
 	})
 	bindEvent(canvas, "mousedown", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		button := e.Get("button").Int()
 		if 0 <= button && button < int(mouseButtonCount) {
 			window.clicks = append(window.clicks, MouseClick{
@@ -136,6 +171,10 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	})
 
 	bindEvent(canvas, "wheel", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		window.wheelX -= e.Get("deltaX").Float() / 100
 		window.wheelY -= e.Get("deltaY").Float() / 100
 		e.Call("preventDefault")
@@ -143,10 +182,18 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 
 	// Suppress right clicks triggering the context menu.
 	bindEvent(canvas, "contextmenu", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		e.Call("preventDefault")
 	})
 
 	bindEvent(doc, "fullscreenchange", func(e js.Value) {
+		if !window.running {
+			return
+		}
+
 		window.isFullscreen = doc.Get("fullscreenElement").Truthy()
 		window.wantFullscreen = window.isFullscreen
 		if window.isFullscreen {
@@ -184,8 +231,8 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 			window.clicks = window.clicks[:0]
 			window.pressedKeys = window.pressedKeys[:0]
 			window.typedChars = window.typedChars[:0]
+			js.Global().Call("requestAnimationFrame", renderFrame)
 		}
-		js.Global().Call("requestAnimationFrame", renderFrame)
 		return nil
 	})
 	js.Global().Call("requestAnimationFrame", renderFrame)
@@ -205,7 +252,21 @@ func bindEvent(target js.Value, event string, handler func(js.Value)) js.Func {
 
 func (w *wasmWindow) startAudioPlayback() {
 	if w.audioCtx.Get("state").String() == "suspended" {
-		w.audioCtx.Call("resume")
+		promise := w.audioCtx.Call("resume")
+
+		// Play all the sounds that have been started before sound was
+		// available. Play them at their offset relative to when they were
+		// started.
+		promise.Call("then", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			now := time.Now()
+			for _, s := range w.soundsToPlay {
+				offset := now.Sub(s.startedAt).Seconds()
+				s.source.Call("start", 0, offset)
+			}
+
+			w.soundsToPlay = nil
+			return nil
+		}))
 	}
 }
 
@@ -436,6 +497,7 @@ func isUpperCaseLetter(s string) bool {
 
 func (w *wasmWindow) Close() {
 	w.running = false
+	w.canvas.Get("style").Set("cursor", "default")
 	w.audioCtx.Call("close")
 }
 
@@ -475,10 +537,12 @@ func (w *wasmWindow) updateFullscreen() {
 }
 
 func (w *wasmWindow) ShowCursor(show bool) {
-	if show {
-		w.canvas.Get("style").Set("cursor", "default")
-	} else {
-		w.canvas.Get("style").Set("cursor", "none")
+	if w.running {
+		if show {
+			w.canvas.Get("style").Set("cursor", "default")
+		} else {
+			w.canvas.Get("style").Set("cursor", "none")
+		}
 	}
 }
 
@@ -756,9 +820,6 @@ func (w *wasmWindow) DrawScaledText(text string, x, y int, scale float32, color 
 }
 
 func (w *wasmWindow) PlaySoundFile(path string) error {
-	// Sounds might not have been started yet.
-	w.startAudioPlayback()
-
 	if buffer, ok := w.audioBuffers[path]; ok {
 		return w.playBuffer(buffer)
 	}
@@ -780,7 +841,20 @@ func (w *wasmWindow) playBuffer(buffer js.Value) error {
 	source := w.audioCtx.Call("createBufferSource")
 	source.Set("buffer", buffer)
 	source.Call("connect", w.audioCtx.Get("destination"))
-	source.Call("start")
+
+	// If sound has already started (after first user input) we play the sound
+	// right away.
+	// If sound is still disabled (until first user input) we remember the
+	// sound to be played later.
+	if w.hasSeenUserInput {
+		source.Call("start")
+	} else {
+		w.soundsToPlay = append(w.soundsToPlay, futureSound{
+			source:    source,
+			startedAt: time.Now(),
+		})
+	}
+
 	return nil
 }
 
