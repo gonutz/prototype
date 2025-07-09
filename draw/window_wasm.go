@@ -798,7 +798,7 @@ func (w *wasmWindow) GetTextSize(text string) (int, int) {
 
 const (
 	wasmFontBaseScale = 13.5
-	fontLineGapScale  = 1.195
+	fontLineGapScale  = 1.24
 )
 
 func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut int) {
