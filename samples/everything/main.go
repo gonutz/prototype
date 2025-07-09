@@ -38,6 +38,12 @@ func main() {
 
 	draw.RunWindow("Everything", 800, 600, func(window draw.Window) {
 
+		if firstFrame {
+			check(window.SetIcon("rsc/icon.png"))
+			window.PlaySoundFile("rsc/music.wav")
+			firstFrame = false
+		}
+
 		if window.IsKeyDown(draw.KeyLeftControl) && window.WasKeyPressed(draw.KeyC) {
 			window.Close()
 		}
@@ -101,11 +107,6 @@ func main() {
 
 		if window.WasKeyPressed(draw.KeyS) {
 			window.PlaySoundFile("rsc/sound.wav")
-		}
-
-		if firstFrame {
-			window.PlaySoundFile("rsc/music.wav")
-			firstFrame = false
 		}
 
 		mx, my := window.MousePosition()
@@ -178,10 +179,10 @@ func main() {
 
 		imgW, imgH, _ := window.ImageSize("rsc/meds.png")
 		window.FillRect(9, 519, imgW+2, imgH+2, draw.DarkYellow)
-		window.DrawImageFile("rsc/meds.png", 10, 520)
-		window.DrawImageFilePart("rsc/meds.png", 32, 0, 16, 15, 100, 520, 3*16, 3*15, 45)
-		window.DrawImageFileRotated("rsc/meds.png", 200, 520, -20)
-		window.DrawImageFileTo("rsc/meds.png", 300, 520, 128, 64, 5)
+		check(window.DrawImageFile("rsc/meds.png", 10, 520))
+		check(window.DrawImageFilePart("rsc/meds.png", 32, 0, 16, 15, 100, 520, 3*16, 3*15, 45))
+		check(window.DrawImageFileRotated("rsc/meds.png", 200, 520, -20))
+		check(window.DrawImageFileTo("rsc/meds.png", 300, 520, 128, 64, 5))
 
 		windowW, windowH := window.Size()
 
@@ -229,4 +230,10 @@ func boolToString(b bool) string {
 		return "on"
 	}
 	return "off"
+}
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

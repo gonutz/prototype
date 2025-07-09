@@ -31,6 +31,11 @@ type Window interface {
 	// calling Close or another frame will be displayed).
 	Close()
 
+	// SetIcon loads the image from the given path and sets it as the window
+	// icon on desktop or as the favicon in the browser. If loading the image
+	// fails, it returns an error.
+	SetIcon(path string) error
+
 	// Size returns the window's size in pixels.
 	Size() (width, height int)
 

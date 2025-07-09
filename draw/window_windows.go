@@ -5,6 +5,7 @@ package draw
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"image"
 	"image/draw"
@@ -476,6 +477,91 @@ func handleMessage(window w32.HWND, msg uint32, w, l uintptr) uintptr {
 
 func (w *window) Close() {
 	w.running = false
+}
+
+func (w *window) SetIcon(path string) error {
+	f, err := OpenFile(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return err
+	}
+
+	icon, err := iconFromImage(img)
+	if err != nil {
+		return err
+	}
+
+	handle := uintptr(icon)
+	w32.SendMessage(w.handle, w32.WM_SETICON, w32.ICON_SMALL, handle)
+	w32.SendMessage(w.handle, w32.WM_SETICON, w32.ICON_SMALL2, handle)
+	w32.SendMessage(w.handle, w32.WM_SETICON, w32.ICON_BIG, handle)
+
+	return nil
+}
+
+func iconFromImage(img image.Image) (w32.HICON, error) {
+	// We create an icon structure in the form Windows likes which consists of a
+	// BITMAPINFOHEADER (see
+	// https://docs.microsoft.com/en-us/previous-versions/dd183376(v=vs.85))
+	// followed by the image data. We need 4 byte BGRA color order while the Go
+	// image gives use RGBA, see the re-ordering in the for loop below.
+	// After the image data comes a mask which has 1 bit for each pixel. We want
+	// to use each bit so we set them all to 1.
+	// All this is put into one single byte array and then passed to
+	// CreateIconFromResource.
+
+	size := img.Bounds().Size()
+	const headerLen = 40                   // Size of BITMAPINFOHEADER.
+	maskLen := (size.Y * (size.X + 7) / 8) // Round up to whole bytes.
+	iconLen := headerLen + size.X*size.Y*4 + maskLen
+	iconData := make([]byte, iconLen)
+
+	// Write the BITMAPINFOHEADER.
+	binary.LittleEndian.PutUint32(iconData[0:], headerLen)
+	binary.LittleEndian.PutUint32(iconData[4:], uint32(size.X))
+	binary.LittleEndian.PutUint32(iconData[8:], uint32(size.Y*2))
+	binary.LittleEndian.PutUint16(iconData[12:], 1)
+	binary.LittleEndian.PutUint16(iconData[14:], 32)
+	binary.LittleEndian.PutUint32(iconData[16:], w32.BI_RGB)
+	binary.LittleEndian.PutUint32(iconData[20:], uint32(size.X*size.Y*4))
+	// 4 uint32 0s follow, iconData[40:] is where the image data starts.
+	dest := iconData[headerLen:]
+	// Write the pixels upside down into the bitmap buffer.
+	b := img.Bounds()
+	for y := b.Max.Y - 1; y >= b.Min.Y; y-- {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			dest[0] = byte(b >> 8)
+			dest[1] = byte(g >> 8)
+			dest[2] = byte(r >> 8)
+			dest[3] = byte(a >> 8)
+			dest = dest[4:]
+		}
+	}
+
+	// Write the mask. Transparency comes from the image's alpha channel, thus
+	// we can set the mask to all 1s.
+	for i := range dest {
+		dest[i] = 0xFF
+	}
+
+	icon := w32.CreateIconFromResource(
+		unsafe.Pointer(&iconData[0]),
+		uint32(len(iconData)),
+		true, // true for icons, false for cursors.
+		// 0x30000 is a magic constant from the docs:
+		// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createiconfromresource
+		0x30000,
+	)
+	if icon == 0 {
+		return 0, errors.New("CreateIconFromResource returned 0")
+	}
+	return icon, nil
 }
 
 func (w *window) Size() (int, int) {

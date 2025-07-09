@@ -143,6 +143,22 @@ func (w *window) Close() {
 	w.running = false
 }
 
+func (w *window) SetIcon(path string) error {
+	f, err := OpenFile(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return err
+	}
+
+	w.window.SetIcon([]image.Image{img})
+	return nil
+}
+
 func (w *window) Size() (int, int) {
 	return int(w.width + 0.5), int(w.height + 0.5)
 }

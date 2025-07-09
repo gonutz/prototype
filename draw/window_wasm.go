@@ -505,6 +505,28 @@ func (w *wasmWindow) Close() {
 	w.audioCtx.Call("close")
 }
 
+func (w *wasmWindow) SetIcon(path string) error {
+	doc := js.Global().Get("document")
+	link := doc.Call("querySelector", "link[rel~='icon']")
+	if !link.Truthy() {
+		link = doc.Call("createElement", "link")
+		link.Set("rel", "icon")
+		link = doc.Get("head").Call("appendChild", link)
+	}
+
+	if OpenFile != nil {
+		url, err := loadBlob(path)
+		if err != nil {
+			return err
+		}
+		link.Set("href", url)
+	} else {
+		link.Set("href", path)
+	}
+
+	return nil
+}
+
 func (w *wasmWindow) Size() (int, int) {
 	return w.canvas.Get("width").Int(), w.canvas.Get("height").Int()
 }
