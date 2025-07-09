@@ -820,7 +820,7 @@ func (w *wasmWindow) GetScaledTextSize(text string, scale float32) (wOut, hOut i
 	}
 
 	lineHeight := fontSize * fontLineGapScale
-	return maxWidth, int(lineHeight*float64(len(lines)) + 0.5)
+	return maxWidth, int(lineHeight*float64(len(lines)) + 0.9999)
 }
 
 func (w *wasmWindow) DrawText(text string, x, y int, color Color) {
