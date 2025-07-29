@@ -20,6 +20,17 @@ var OpenFile func(path string) (io.ReadCloser, error) = DefaultOpenFile
 // at 60Hz and you do all your event handling and drawing in it.
 type UpdateFunction func(window Window)
 
+// ErrImageLoading is returned by the Window.ImageSize and Window.DrawImage...
+// functions when the requested image is still being loaded. This only happens
+// on WASM, as the JavaScript runtime will load images asynchronously.
+const ErrImageLoading = errorString("image is still loading")
+
+type errorString string
+
+func (s errorString) Error() string {
+	return string(s)
+}
+
 // Window provides functions to draw simple primitives and images, handle
 // keyboard and mouse events and play sounds.
 // All drawing functions that have width and height as input expect those to be

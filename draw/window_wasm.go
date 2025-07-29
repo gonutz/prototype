@@ -32,7 +32,7 @@ type wasmWindow struct {
 	wheelX           float64
 	wheelY           float64
 	clicks           []MouseClick
-	images           map[string]js.Value
+	images           map[string]*imageState
 	audioCtx         js.Value
 	audioBuffers     map[string]js.Value
 	fontURL          js.Value
@@ -40,6 +40,11 @@ type wasmWindow struct {
 	isFullscreen     bool
 	hasSeenUserInput bool
 	soundsToPlay     []futureSound
+}
+
+type imageState struct {
+	image js.Value
+	err   error
 }
 
 type futureSound struct {
@@ -64,7 +69,7 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		canvas:       canvas,
 		ctx:          canvas.Call("getContext", "2d"),
 		audioCtx:     js.Global().Get("AudioContext").New(),
-		images:       map[string]js.Value{},
+		images:       map[string]*imageState{},
 		audioBuffers: map[string]js.Value{},
 	}
 
@@ -282,24 +287,46 @@ func (w *wasmWindow) setColor(c Color) {
 }
 
 func (w *wasmWindow) loadImage(path string) (js.Value, error) {
-	if img, ok := w.images[path]; ok && img.Truthy() {
-		return img, nil
+	// There are 4 possible image states:
+	// 1. Never seen before - must be loaded.
+	// 2. Loading has started and not yet finished.
+	// 3. Loading was successful - return the cached image.
+	// 4. Loading failed - return the cached error.
+
+	if imgState, ok := w.images[path]; ok {
+		return imgState.image, imgState.err
 	}
 
 	img := js.Global().Get("Image").New()
 
+	w.images[path] = &imageState{
+		image: img,
+		err:   ErrImageLoading,
+	}
+
+	img.Set("onload", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		w.images[path].err = nil
+		return nil
+	}))
+
+	img.Set("onerror", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		w.images[path].err = fmt.Errorf("failed to load image \"%s\"", path)
+		return nil
+	}))
+
 	if OpenFile != nil {
 		url, err := loadBlob(path)
 		if err != nil {
-			return js.Null(), err
+			w.images[path].err = err
+		} else {
+			img.Set("src", url)
 		}
-		img.Set("src", url)
 	} else {
 		img.Set("src", path)
 	}
 
-	w.images[path] = img
-	return img, nil
+	imgState := w.images[path]
+	return imgState.image, imgState.err
 }
 
 func loadBlob(path string) (js.Value, error) {
