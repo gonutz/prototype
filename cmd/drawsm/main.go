@@ -23,21 +23,21 @@ Usage:
 
 The commands are:
 
-  run
+  run [args...]
 
     Does not generate any files in the current directory. Instead it
     builds main.wasm in a temporary folder and serves the template
     index.html file locally on port 8080. Opens a web browser at the
-    local URL.
+    local URL. The optional args are passed to the Go compiler.
 
-  build
+  build [args...]
 
     Generates index.html, wasm_exec.js and main.wasm in the current
     project. index.html is only generated if it does not yet exist.
     This way you can edit your index.html to extend it beyond the
-    template.
+    template. The optional args are passed to the Go compiler.
 
-  rebuild
+  rebuild [args...]
 
     Same as build, but overwrites index.html, even if it was modified.
 
@@ -61,16 +61,16 @@ The commands are:
 
 func main() {
 	args := os.Args[1:]
-	if len(args) == 1 && (args[0] == "build" || args[0] == "rebuild") {
-		check(build(args[0] == "rebuild"))
+	if len(args) >= 1 && (args[0] == "build" || args[0] == "rebuild") {
+		check(build(args[0] == "rebuild", args[1:]...))
+	} else if len(args) >= 1 && args[0] == "run" {
+		check(run(args[1:]...))
 	} else if len(args) == 1 && args[0] == "serve" {
 		check(serve())
 	} else if len(args) == 1 && args[0] == "open" {
 		check(open())
 	} else if len(args) == 1 && args[0] == "show" {
 		check(show())
-	} else if len(args) == 1 && args[0] == "run" {
-		check(run())
 	} else if len(args) == 0 || len(args) == 1 && args[0] == "help" {
 		help()
 	} else {
@@ -86,7 +86,7 @@ func check(err error) {
 	}
 }
 
-func build(rebuildTemplate bool) error {
+func build(rebuildTemplate bool, args ...string) error {
 	// Copy the Go installation's wasm_exec.js file which is needed to run the
 	// build output.
 	wasmExecPath, err := locateWasmExecJs()
@@ -100,6 +100,7 @@ func build(rebuildTemplate bool) error {
 
 	// Build the WASM project.
 	build := exec.Command("go", "build", "-o", "main.wasm")
+	build.Args = append(build.Args, args...)
 	build.Env = append(
 		os.Environ(),
 		"GOOS=js",
@@ -209,7 +210,7 @@ func show() error {
 	return httpErr
 }
 
-func run() error {
+func run(args ...string) error {
 	// Create a temporary folder for the WASM build output.
 	tempDir, err := os.MkdirTemp("", "drawsm_")
 	if err != nil {
@@ -232,6 +233,7 @@ func run() error {
 	// later serving via HTTP.
 	mainWasmPath := filepath.Join(tempDir, "main.wasm")
 	build := exec.Command("go", "build", "-o", mainWasmPath)
+	build.Args = append(build.Args, args...)
 	build.Env = append(
 		os.Environ(),
 		"GOOS=js",
