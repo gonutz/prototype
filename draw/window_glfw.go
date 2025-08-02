@@ -42,6 +42,7 @@ type window struct {
 	mouseX, mouseY int
 	wheelX, wheelY float64
 	blurImages     bool
+	iconPath       string
 }
 
 // RunWindow creates a new window and calls update 60 times per second.
@@ -144,6 +145,10 @@ func (w *window) Close() {
 }
 
 func (w *window) SetIcon(path string) error {
+	if w.iconPath == path {
+		return nil
+	}
+
 	f, err := OpenFile(path)
 	if err != nil {
 		return err
@@ -156,6 +161,9 @@ func (w *window) SetIcon(path string) error {
 	}
 
 	w.window.SetIcon([]image.Image{img})
+
+	w.iconPath = path
+
 	return nil
 }
 

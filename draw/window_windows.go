@@ -392,6 +392,7 @@ type window struct {
 	textures     map[string]sizedTexture
 	backlog      []float32
 	backlogType  shape
+	iconPath     string
 }
 
 type shape int
@@ -480,6 +481,10 @@ func (w *window) Close() {
 }
 
 func (w *window) SetIcon(path string) error {
+	if w.iconPath == path {
+		return nil
+	}
+
 	f, err := OpenFile(path)
 	if err != nil {
 		return err
@@ -500,6 +505,8 @@ func (w *window) SetIcon(path string) error {
 	w32.SendMessage(w.handle, w32.WM_SETICON, w32.ICON_SMALL, handle)
 	w32.SendMessage(w.handle, w32.WM_SETICON, w32.ICON_SMALL2, handle)
 	w32.SendMessage(w.handle, w32.WM_SETICON, w32.ICON_BIG, handle)
+
+	w.iconPath = path
 
 	return nil
 }

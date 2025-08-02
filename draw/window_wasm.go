@@ -40,6 +40,7 @@ type wasmWindow struct {
 	isFullscreen     bool
 	hasSeenUserInput bool
 	soundsToPlay     []futureSound
+	iconPath         string
 }
 
 type imageState struct {
@@ -533,6 +534,10 @@ func (w *wasmWindow) Close() {
 }
 
 func (w *wasmWindow) SetIcon(path string) error {
+	if w.iconPath == path {
+		return nil
+	}
+
 	doc := js.Global().Get("document")
 	link := doc.Call("querySelector", "link[rel~='icon']")
 	if !link.Truthy() {
@@ -550,6 +555,8 @@ func (w *wasmWindow) SetIcon(path string) error {
 	} else {
 		link.Set("href", path)
 	}
+
+	w.iconPath = path
 
 	return nil
 }
