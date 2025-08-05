@@ -184,6 +184,16 @@ func main() {
 		check(window.DrawImageFileRotated("rsc/meds.png", 200, 520, -20))
 		check(window.DrawImageFileTo("rsc/meds.png", 300, 520, 128, 64, 5))
 
+		check(window.DrawImageFileTo("rsc/meds.png", 520, 520, 64, 64, 5))
+		check(window.DrawImageFileTo("rsc/meds.png", 520, 520, -64, 64, 5))
+		check(window.DrawImageFileTo("rsc/meds.png", 520, 520, 64, -64, 5))
+		check(window.DrawImageFileTo("rsc/meds.png", 520, 520, -64, -64, 5))
+
+		check(window.DrawImageFilePart("rsc/meds.png", 32, 0, 16, 16, 650, 520, 32, 32, 10))
+		check(window.DrawImageFilePart("rsc/meds.png", 32, 0, 16, 16, 650, 520, -32, 32, 10))
+		check(window.DrawImageFilePart("rsc/meds.png", 32, 0, 16, 16, 650, 520, 32, -32, 10))
+		check(window.DrawImageFilePart("rsc/meds.png", 32, 0, 16, 16, 650, 520, -32, -32, 10))
+
 		windowW, windowH := window.Size()
 
 		text := "Ctrl+C: Close\n"
@@ -221,7 +231,7 @@ func main() {
 		window.FillRect(5, 5, textW, textH, draw.DarkPurple)
 		window.DrawScaledText(text, 5, 5, textScale, draw.White)
 
-		window.FillRect(500, 500, 500, 500, draw.Green)
+		window.FillRect(700, 500, 500, 500, draw.Green)
 	})
 }
 
@@ -233,6 +243,9 @@ func boolToString(b bool) string {
 }
 
 func check(err error) {
+	if err == draw.ErrImageLoading {
+		return
+	}
 	if err != nil {
 		panic(err)
 	}

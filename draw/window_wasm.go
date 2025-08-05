@@ -773,7 +773,7 @@ func (w *wasmWindow) DrawImageFile(path string, x, y int) error {
 	return nil
 }
 
-func (w *wasmWindow) DrawImageFileTo(path string, x, y, w2, h2, rot int) error {
+func (w *wasmWindow) DrawImageFileTo(path string, x, y, width, height, rot int) error {
 	img, err := w.loadImage(path)
 	if err != nil {
 		return err
@@ -781,12 +781,23 @@ func (w *wasmWindow) DrawImageFileTo(path string, x, y, w2, h2, rot int) error {
 
 	w.ctx.Call("save")
 
-	w.ctx.Call("translate", x+w2/2, y+h2/2)
+	w.ctx.Call("translate", x+width/2, y+height/2)
 	w.ctx.Call("rotate", float64(rot)*math.Pi/180)
+
+	scaleX, scaleY := 1, 1
+	if width < 0 {
+		scaleX = -1
+	}
+	if height < 0 {
+		scaleY = -1
+	}
+	if scaleX != 1 || scaleY != 1 {
+		w.ctx.Call("scale", scaleX, scaleY)
+	}
 
 	w.ctx.Call("drawImage", img,
 		0, 0, img.Get("width").Int(), img.Get("height").Int(),
-		-w2/2, -h2/2, w2, h2,
+		-width/2, -height/2, width, height,
 	)
 
 	w.ctx.Call("restore")
@@ -821,6 +832,18 @@ func (w *wasmWindow) DrawImageFilePart(path string,
 	w.ctx.Call("save")
 	w.ctx.Call("translate", dx+dw/2, dy+dh/2)
 	w.ctx.Call("rotate", float64(rot)*math.Pi/180)
+
+	scaleX, scaleY := 1, 1
+	if dw < 0 {
+		scaleX = -1
+	}
+	if dh < 0 {
+		scaleY = -1
+	}
+	if scaleX != 1 || scaleY != 1 {
+		w.ctx.Call("scale", scaleX, scaleY)
+	}
+
 	w.ctx.Call("drawImage",
 		img,
 		sx, sy, sw, sh,
