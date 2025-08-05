@@ -76,12 +76,15 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	defer d3d.Release()
 
 	globalWindow = &window{
-		running:   true,
-		soundOn:   soundOn,
-		sounds:    make(map[string]mixer.SoundSource),
-		textures:  make(map[string]sizedTexture),
-		curFilter: d3d9.TEXF_NONE,
+		running:       true,
+		soundOn:       soundOn,
+		sounds:        make(map[string]mixer.SoundSource),
+		textures:      make(map[string]sizedTexture),
+		curFilter:     d3d9.TEXF_NONE,
+		showingCursor: true,
 	}
+
+	defer globalWindow.ShowCursor(true)
 
 	class := w32.WNDCLASSEX{
 		WndProc:   syscall.NewCallback(handleMessage),
@@ -370,29 +373,29 @@ func hideConsoleWindow() {
 }
 
 type window struct {
-	handle       w32.HWND
-	device       *d3d9.Device
-	d3d9Error    d3d9.Error
-	running      bool
-	isFullscreen bool
-	windowed     w32.WINDOWPLACEMENT
-	cursorHidden bool
-	blurImages   bool
-	curFilter    uint32
-	mouse        struct{ x, y int }
-	wheelX       float64
-	wheelY       float64
-	keyDown      [keyCount]bool
-	mouseDown    [mouseButtonCount]bool
-	pressed      []Key
-	clicks       []MouseClick
-	soundOn      bool
-	sounds       map[string]mixer.SoundSource
-	text         string
-	textures     map[string]sizedTexture
-	backlog      []float32
-	backlogType  shape
-	iconPath     string
+	handle        w32.HWND
+	device        *d3d9.Device
+	d3d9Error     d3d9.Error
+	running       bool
+	isFullscreen  bool
+	windowed      w32.WINDOWPLACEMENT
+	showingCursor bool
+	blurImages    bool
+	curFilter     uint32
+	mouse         struct{ x, y int }
+	wheelX        float64
+	wheelY        float64
+	keyDown       [keyCount]bool
+	mouseDown     [mouseButtonCount]bool
+	pressed       []Key
+	clicks        []MouseClick
+	soundOn       bool
+	sounds        map[string]mixer.SoundSource
+	text          string
+	textures      map[string]sizedTexture
+	backlog       []float32
+	backlogType   shape
+	iconPath      string
 }
 
 type shape int
@@ -595,17 +598,17 @@ func (w *window) IsFullscreen() bool {
 }
 
 func (w *window) ShowCursor(show bool) {
-	hide := !show
-	if hide == w.cursorHidden {
+	if show == w.showingCursor {
 		return
 	}
 
-	w.cursorHidden = hide
-	if w.cursorHidden {
-		setShowCursorCountTo(-1)
-	} else {
+	if show {
 		setShowCursorCountTo(0)
+	} else {
+		setShowCursorCountTo(-1)
 	}
+
+	w.showingCursor = show
 }
 
 func setShowCursorCountTo(count int) {

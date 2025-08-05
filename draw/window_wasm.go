@@ -23,6 +23,7 @@ type wasmWindow struct {
 	width            int
 	height           int
 	running          bool
+	showingCursor    bool
 	keyDown          [keyCount]bool
 	pressedKeys      []Key
 	typed            string
@@ -64,15 +65,18 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 	canvas.Set("height", height)
 
 	window := &wasmWindow{
-		running:      true,
-		width:        width,
-		height:       height,
-		canvas:       canvas,
-		ctx:          canvas.Call("getContext", "2d"),
-		audioCtx:     js.Global().Get("AudioContext").New(),
-		images:       map[string]*imageState{},
-		audioBuffers: map[string]js.Value{},
+		running:       true,
+		width:         width,
+		height:        height,
+		showingCursor: true,
+		canvas:        canvas,
+		ctx:           canvas.Call("getContext", "2d"),
+		audioCtx:      js.Global().Get("AudioContext").New(),
+		images:        map[string]*imageState{},
+		audioBuffers:  map[string]js.Value{},
 	}
+
+	defer window.ShowCursor(true)
 
 	bindEvent(js.Global(), "keydown", func(e js.Value) {
 		if !window.running {
@@ -597,13 +601,17 @@ func (w *wasmWindow) updateFullscreen() {
 }
 
 func (w *wasmWindow) ShowCursor(show bool) {
-	if w.running {
-		if show {
-			w.canvas.Get("style").Set("cursor", "default")
-		} else {
-			w.canvas.Get("style").Set("cursor", "none")
-		}
+	if show == w.showingCursor {
+		return
 	}
+
+	if show {
+		w.canvas.Get("style").Set("cursor", "default")
+	} else {
+		w.canvas.Get("style").Set("cursor", "none")
+	}
+
+	w.showingCursor = show
 }
 
 func (w *wasmWindow) WasKeyPressed(key Key) bool {

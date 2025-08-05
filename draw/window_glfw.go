@@ -43,6 +43,7 @@ type window struct {
 	wheelX, wheelY float64
 	blurImages     bool
 	iconPath       string
+	showingCursor  bool
 }
 
 // RunWindow creates a new window and calls update 60 times per second.
@@ -89,7 +90,9 @@ func RunWindow(title string, width, height int, update UpdateFunction) error {
 		width:          float64(width),
 		height:         float64(height),
 		textures:       make(map[string]texture),
+		showingCursor:  true,
 	}
+	defer w.ShowCursor(true)
 	win.SetKeyCallback(w.keyPress)
 	win.SetCharCallback(w.charTyped)
 	win.SetMouseButtonCallback(w.mouseButtonEvent)
@@ -203,11 +206,17 @@ func monitorContaining(winX, winY int) *glfw.Monitor {
 }
 
 func (w *window) ShowCursor(show bool) {
+	if w.showingCursor == show {
+		return
+	}
+
 	if show {
 		w.window.SetInputMode(glfw.CursorMode, glfw.CursorNormal)
 	} else {
 		w.window.SetInputMode(glfw.CursorMode, glfw.CursorHidden)
 	}
+
+	w.showingCursor = show
 }
 
 func (w *window) keyPress(_ *glfw.Window, key glfw.Key, _ int, action glfw.Action, _ glfw.ModifierKey) {
